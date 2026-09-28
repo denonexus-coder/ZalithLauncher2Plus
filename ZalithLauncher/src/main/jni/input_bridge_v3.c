@@ -33,6 +33,7 @@
 #define EVENT_TYPE_WINDOW_SIZE 1008
 
 static void registerFunctions(JNIEnv *env);
+void start_cpu_pinner(void);
 
 jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
     if (pojav_environ->dalvikJavaVMPtr == NULL) {
@@ -62,6 +63,7 @@ jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
         hookExec();
         installLwjglDlopenHook();
         installEMUIIteratorMititgation();
+        if (getenv("POJAV_EXPERIMENTAL_CPU_AFFINITY")) start_cpu_pinner();
     }
 
     if(pojav_environ->dalvikJavaVMPtr == vm) {

@@ -35,6 +35,7 @@ LOCAL_SRC_FILES := \
     stdio_is.c \
     java_exec_hooks.c \
     lwjgl_dlopen_hook.c \
+    thread_pinner.c \
     framegen/fps_limit.c
 
 ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
