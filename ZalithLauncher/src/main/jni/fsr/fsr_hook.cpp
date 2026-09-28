@@ -5,6 +5,7 @@
 #include <cstring>
 
 static bool g_initialized = false;
+static bool g_requested = false;
 static bool g_active = false;
 static bool g_hooksActive = false;
 static int g_qualityPreset = 2;
@@ -286,6 +287,7 @@ static bool initFSRResources() {
 }
 
 extern "C" void fsr_init(int qualityPreset) {
+    g_requested = true;
     g_qualityPreset = qualityPreset;
     g_initialized = false;
     g_active = false;
@@ -294,7 +296,7 @@ extern "C" void fsr_init(int qualityPreset) {
     EGLSurface surface = eglGetCurrentSurface(EGL_DRAW);
     if (display == EGL_NO_DISPLAY || surface == EGL_NO_SURFACE) {
         LOGD("FSR init deferred (no current context)");
-        g_initialized = true;
+        g_initialized = false;
         return;
     }
 
@@ -392,6 +394,7 @@ static bool fsrRebuildFramebuffers() {
 }
 
 extern "C" void fsr_apply() {
+    if (!g_requested) return;
     if (g_active) {
         EGLDisplay display = eglGetCurrentDisplay();
         EGLSurface surface = eglGetCurrentSurface(EGL_DRAW);
@@ -427,7 +430,6 @@ extern "C" void fsr_apply() {
             fsr_init(g_qualityPreset);
             if (g_active) goto do_fsr;
         }
-        g_initialized = true;
         return;
     }
 
@@ -497,6 +499,7 @@ extern "C" void fsr_set_quality(int qualityPreset) {
 }
 
 extern "C" void fsr_destroy() {
+    g_requested = false;
     g_active = false;
     g_initialized = false;
     g_hooksActive = false;

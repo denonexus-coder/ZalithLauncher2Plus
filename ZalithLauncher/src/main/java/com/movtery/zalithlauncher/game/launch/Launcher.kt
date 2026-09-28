@@ -274,6 +274,14 @@ abstract class Launcher(
         val ramAllocationString = ramAllocation.toString()
         args.add("-Xms${ramAllocationString}M")
         args.add("-Xmx${ramAllocationString}M")
+        if (args.none { it.startsWith("-XX:+Use") || it.startsWith("-XX:+Serial") || it.startsWith("-XX:+Parallel") }) {
+            args.add("-XX:+UseG1GC")
+            args.add("-XX:MaxGCPauseMillis=37")
+            args.add("-XX:G1NewSizePercent=28")
+            args.add("-XX:G1ReservePercent=15")
+            args.add("-XX:G1HeapRegionSize=8M")
+            args.add("-XX:+ParallelRefProcEnabled")
+        }
 
         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")
 
@@ -286,6 +294,16 @@ abstract class Launcher(
 
         // We don't have jemalloc for our LWJGL so set the allocator to system to avoid error logs
         args.add("-Dorg.lwjgl.system.allocator=system")
+
+        val fsrQuality = args.asSequence()
+            .filter { it.startsWith("-Dzlith.fsr.quality=") }
+            .mapNotNull { it.substringAfter('=').toIntOrNull() }
+            .firstOrNull { it in 0..3 }
+            ?: System.getProperty("zlith.fsr.quality")?.toIntOrNull()?.takeIf { it in 0..3 }
+        fsrQuality?.let { q ->
+            ZLBridge.fsrInit(q)
+            Logger.info(TAG, "FSR enabled with quality preset $q")
+        }
 
         // Some phones are not using the right number of cores, fix that
         args.add("-XX:ActiveProcessorCount=${java.lang.Runtime.getRuntime().availableProcessors()}")

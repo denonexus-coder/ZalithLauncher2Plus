@@ -36,6 +36,16 @@ static const char* g_LogTag = "GLBridge";
 static __thread gl_render_window_t* currentBundle;
 static EGLDisplay g_EglDisplay;
 
+typedef void (*fsr_apply_fn_t)(void);
+static fsr_apply_fn_t fsr_apply_fn;
+
+static void apply_fsr() {
+    if (fsr_apply_fn == NULL) {
+        fsr_apply_fn = (fsr_apply_fn_t)dlsym(RTLD_DEFAULT, "fsr_apply");
+    }
+    if (fsr_apply_fn != NULL) fsr_apply_fn();
+}
+
 bool gl_init() {
     dlsym_EGL();
     g_EglDisplay = eglGetDisplay_p(EGL_DEFAULT_DISPLAY);
@@ -235,6 +245,7 @@ void gl_swap_buffers() {
 
     if (currentBundle->surface != NULL)
     {
+        apply_fsr();
         if (!eglSwapBuffers_p(g_EglDisplay, currentBundle->surface) && eglGetError_p() == EGL_BAD_SURFACE)
         {
             eglMakeCurrent_p(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

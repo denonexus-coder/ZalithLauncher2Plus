@@ -214,6 +214,8 @@ class GameLauncher(
             }
         }
 
+        ZLBridge.dlopen("${PathManager.DIR_NATIVE_LIB}/libzl_fsr.so")
+
         val rendererLib = loadGraphicsLibrary() ?: return
         if (!ZLBridge.dlopen(rendererLib) && !ZLBridge.dlopen(findInLdLibPath(rendererLib))) {
             Logger.error(TAG, "Failed to load renderer $rendererLib")

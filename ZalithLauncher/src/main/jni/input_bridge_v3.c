@@ -34,6 +34,8 @@
 
 static void registerFunctions(JNIEnv *env);
 void start_cpu_pinner(void);
+void bigcore_set_affinity(void);
+void bigcore_apply_to_all_threads(void);
 
 jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
     if (pojav_environ->dalvikJavaVMPtr == NULL) {
@@ -63,7 +65,12 @@ jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
         hookExec();
         installLwjglDlopenHook();
         installEMUIIteratorMititgation();
-        if (getenv("POJAV_EXPERIMENTAL_CPU_AFFINITY")) start_cpu_pinner();
+        if (getenv("POJAV_EXPERIMENTAL_CPU_AFFINITY")) {
+            start_cpu_pinner();   /* camada experimental: controlo total */
+        } else if (getenv("POJAV_BIG_CORE_AFFINITY")) {
+            bigcore_set_affinity();
+            bigcore_apply_to_all_threads();  /* setting padrão, agora real */
+        }
     }
 
     if(pojav_environ->dalvikJavaVMPtr == vm) {
