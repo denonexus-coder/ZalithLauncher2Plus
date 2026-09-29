@@ -19,34 +19,31 @@
 package com.movtery.zalithlauncher.ui.screens.game.elements
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.shrinkOut
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -57,8 +54,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.recorder.RecordingState
-import com.movtery.zalithlauncher.ui.screens.game.PerfStats
 import com.movtery.zalithlauncher.ui.components.FloatingBall
+import com.movtery.zalithlauncher.ui.screens.game.PerfStats
 
 @Composable
 fun DraggableGameBall(
@@ -203,9 +200,15 @@ private fun PerformancePanel(stats: PerfStats, sparkline: List<PerfStats>) {
     val frameColor = frameTimeBandColor(stats.frametimeMs)
     val ramColor = ramBandColor(ramProgress)
     summary.setLength(0)
-    summary.append("avg ").append(stats.avg.toInt()).append(" · min ").append(stats.min).append(" · max ").append(stats.max)
+    summary.append("avg ").append(stats.avg.toInt())
+        .append(" · min ").append(stats.min)
+        .append(" · max ").append(stats.max)
 
-    Column(modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 4.dp)) {
+    Column(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("FPS ${stats.fps}", color = fpsColor, style = numericStyle)
             Canvas(Modifier.width(48.dp).height(16.dp)) {
@@ -220,7 +223,11 @@ private fun PerformancePanel(stats: PerfStats, sparkline: List<PerfStats>) {
                 }
             }
             Spacer(Modifier.width(4.dp))
-            Text(summary.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = numericStyle)
+            Text(
+                summary.toString(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = numericStyle
+            )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(formatTenths(stats.frametimeMs) + "ms", color = frameColor, style = numericStyle)
@@ -230,9 +237,18 @@ private fun PerformancePanel(stats: PerfStats, sparkline: List<PerfStats>) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("RAM ${stats.heapUsedMb}M", color = ramColor, style = numericStyle)
             Spacer(Modifier.width(5.dp))
-            LinearProgressIndicator(progress = ramProgress, modifier = Modifier.width(54.dp).height(4.dp), color = ramColor, trackColor = Color.White.copy(alpha = 0.18f))
+            LinearProgressIndicator(
+                progress = { ramProgress },
+                modifier = Modifier.width(54.dp).height(4.dp),
+                color = ramColor,
+                trackColor = Color.White.copy(alpha = 0.18f)
+            )
             Spacer(Modifier.width(5.dp))
-            Text("máx ${stats.heapMaxMb}M", color = MaterialTheme.colorScheme.onSurfaceVariant, style = numericStyle)
+            Text(
+                "máx ${stats.heapMaxMb}M",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = numericStyle
+            )
         }
     }
 }
@@ -274,18 +290,42 @@ private fun GameBallContent(
     onStopRecording: () -> Unit = {},
     onToggleMic: () -> Unit = {},
 ) {
-    Row(modifier = Modifier.padding(all = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.padding(all = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             Crossfade(opened) { state ->
-                Icon(modifier = Modifier.size(24.dp), painter = painterResource(if (state) R.drawable.ic_menu_open else R.drawable.ic_menu), contentDescription = null)
+                Icon(
+                    modifier = Modifier.size(24.dp),
+                    painter = painterResource(if (state) R.drawable.ic_menu_open else R.drawable.ic_menu),
+                    contentDescription = null
+                )
             }
         }
-        CustomAnimatedVisibility(visible = stats != null) {
-            Spacer(Modifier.width(4.dp))
-            stats?.let { PerformancePanel(it, sparkline) }
+
+        // Painel de performance: só show/hide anima, os valores atualizam sem animação
+        if (stats != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.width(4.dp))
+                PerformancePanel(stats, sparkline)
+            }
         }
-        AnimatedVisibility(visible = isRecordingActive, enter = expandIn(expandFrom = Alignment.CenterStart) + fadeIn(), exit = shrinkOut(shrinkTowards = Alignment.CenterStart) + fadeOut()) {
-            RecordingControlContent(isPaused = isPaused, elapsedMs = elapsedMs, micEnabled = micEnabled, onPause = onPauseRecording, onResume = onResumeRecording, onStop = onStopRecording, onToggleMic = onToggleMic)
+
+        AnimatedVisibility(
+            visible = isRecordingActive,
+            enter = expandIn(expandFrom = Alignment.CenterStart) + fadeIn(),
+            exit = shrinkOut(shrinkTowards = Alignment.CenterStart) + fadeOut()
+        ) {
+            RecordingControlContent(
+                isPaused = isPaused,
+                elapsedMs = elapsedMs,
+                micEnabled = micEnabled,
+                onPause = onPauseRecording,
+                onResume = onResumeRecording,
+                onStop = onStopRecording,
+                onToggleMic = onToggleMic
+            )
         }
     }
 }
