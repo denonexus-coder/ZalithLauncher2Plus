@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,24 +29,122 @@ jobs:
       - name: Build Release APK (arm64)
         run: |
           chmod +x gradlew
-          ./gradlew ZalithLauncher:assembleRelease -Darch=arm64 --stacktrace
 
-      - name: Locate and rename APK
+          ./gradlew \
+            ZalithLauncher:assembleRelease \
+            -Darch=arm64 \
+            --stacktrace
+
+      - name: Locate APK
         run: |
-          APK=$(find ZalithLauncher/build/outputs/apk -name "*.apk" -path "*release*" | head -1)
+          APK=$(find ZalithLauncher/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -path "*release*" \
+            | head -1)
+
           if [ -z "$APK" ]; then
-            echo "Nenhum APK encontrado"
+            echo "ERRO: Nenhum APK encontrado."
             find ZalithLauncher/build/outputs -type f
             exit 1
           fi
+
+          echo "APK encontrado:"
+          echo "$APK"
+
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+      - name: Verify APK is 100% ARM64-v8a
+        run: |
+          set -e
+
+          echo "============================================================"
+          echo "        VERIFICAÇÃO ARM64-V8A"
+          echo "============================================================"
+
+          APK="$APK_PATH"
+
+          echo
+          echo "[1] Arquiteturas nativas encontradas:"
+          unzip -l "$APK" | grep -E 'lib/[^/]+/' || true
+
+          echo
+          echo "[2] Verificando ABI permitida..."
+
+          ABI_DIRS=$(unzip -Z1 "$APK" \
+            | grep '^lib/[^/]*/' \
+            | sed 's#^lib/\([^/]*\)/.*#\1#' \
+            | sort -u || true)
+
+          echo "ABIs encontradas:"
+          if [ -n "$ABI_DIRS" ]; then
+            echo "$ABI_DIRS"
+          else
+            echo "Nenhuma pasta lib/<ABI>/ encontrada."
+          fi
+
+          # O APK precisa conter arm64-v8a
+          if ! echo "$ABI_DIRS" | grep -qx "arm64-v8a"; then
+            echo
+            echo "ERRO: APK NÃO contém arm64-v8a."
+            exit 1
+          fi
+
+          # Não pode conter nenhuma outra ABI
+          INVALID_ABIS=$(echo "$ABI_DIRS" | grep -v '^arm64-v8a$' || true)
+
+          if [ -n "$INVALID_ABIS" ]; then
+            echo
+            echo "ERRO: APK contém ABI(s) além de arm64-v8a:"
+            echo "$INVALID_ABIS"
+            exit 1
+          fi
+
+          echo
+          echo "[3] Verificando bibliotecas nativas..."
+
+          BAD_LIBS=$(unzip -Z1 "$APK" \
+            | grep '^lib/' \
+            | grep -v '^lib/arm64-v8a/' \
+            || true)
+
+          if [ -n "$BAD_LIBS" ]; then
+            echo
+            echo "ERRO: Foram encontradas bibliotecas fora de lib/arm64-v8a/:"
+            echo "$BAD_LIBS"
+            exit 1
+          fi
+
+          echo
+          echo "[4] Listando bibliotecas ARM64:"
+          unzip -Z1 "$APK" \
+            | grep '^lib/arm64-v8a/' \
+            | sort || true
+
+          echo
+          echo "============================================================"
+          echo "              ARM64-V8A CONFIRMADO"
+          echo "============================================================"
+          echo
+          echo "Este APK contém somente a ABI:"
+          echo "  arm64-v8a"
+          echo
+          echo "Nenhuma armeabi-v7a, x86 ou x86_64 foi encontrada."
+          echo
+
+      - name: Rename APK
+        run: |
           mkdir -p out
-          cp "$APK" "out/ZalithLauncher2Plus-v${{ github.run_number }}.apk"
+
+          cp "$APK_PATH" \
+            "out/ZalithLauncher2Plus-v${{ github.run_number }}-arm64-v8a.apk"
+
           ls -lh out
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZalithLauncher2Plus-v${{ github.run_number }}
+          name: ZalithLauncher2Plus-v${{ github.run_number }}-arm64-v8a
           path: out/*.apk
           if-no-files-found: error
           retention-days: 30
