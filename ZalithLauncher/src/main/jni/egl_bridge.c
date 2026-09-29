@@ -266,28 +266,105 @@ void* maybe_load_vulkan() {
     return (void*) strtoul(getenv("VULKAN_PTR"), NULL, 0x10);
 }
 
-static _Atomic int frameCount = 0;
-static _Atomic int fps = 0;
-static time_t lastTime = 0;
+struct zl_stats {
+    uint32_t frame_deltas_us[256];
+    uint64_t last_frame_ns;
+    uint64_t next_publish_ns;
+    uint32_t ring_idx;
+    uint32_t sample_count;
+    int32_t fps, fps_min, fps_max, low1;
+    float fps_avg, frametime_ms;
+};
+static struct zl_stats g_stats = {0};
+static int32_t* g_statsShared = NULL;
+
+static int cmp_u32(const void* a, const void* b) {
+    const uint32_t left = *(const uint32_t*)a;
+    const uint32_t right = *(const uint32_t*)b;
+    return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+static void zl_store_shared_float(int32_t* slot, float value) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    __atomic_store_n((uint32_t*)slot, bits, __ATOMIC_RELAXED);
+}
+
+static void zl_publish(struct zl_stats* s) {
+    uint32_t count = s->sample_count;
+    if (count == 0) {
+        s->fps = 0; s->fps_min = 0; s->fps_max = 0; s->low1 = 0;
+        s->fps_avg = 0.0f; s->frametime_ms = 0.0f;
+        return;
+    }
+    if (count > 256) count = 256;
+    uint32_t sorted[256];
+    memcpy(sorted, s->frame_deltas_us, count * sizeof(uint32_t));
+    qsort(sorted, count, sizeof(uint32_t), cmp_u32);
+    uint32_t min_delta = sorted[0];
+    uint32_t max_delta = sorted[count - 1];
+    uint64_t total_delta = 0;
+    uint32_t valid_frames = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        if (sorted[i] == 0) continue;
+        total_delta += sorted[i];
+        valid_frames++;
+    }
+    if (valid_frames == 0 || total_delta == 0) {
+        s->fps = 0; s->fps_min = 0; s->fps_max = 0; s->low1 = 0;
+        s->fps_avg = 0.0f; s->frametime_ms = 0.0f;
+        return;
+    }
+    const uint32_t p99_base = (count * 99) / 100;
+    const uint32_t p99_index = p99_base + 1 < count ? p99_base + 1 : count - 1;
+    const uint32_t p99_delta = sorted[p99_index];
+    s->fps = 0;
+    for (uint32_t i = 0; i < count; i++) if (sorted[i] > 0 && sorted[i] <= 1000000U) s->fps++;
+    s->fps_min = max_delta > 0 ? (int32_t)(1000000U / max_delta) : 0;
+    s->fps_max = min_delta > 0 ? (int32_t)(1000000U / min_delta) : 0;
+    s->fps_avg = 1000000.0f / ((float)total_delta / (float)valid_frames);
+    s->frametime_ms = (float)total_delta / ((float)valid_frames * 1000.0f);
+    s->low1 = p99_delta > 0 ? (int32_t)(1000000U / p99_delta) : 0;
+    printf("ZLStats: publish fps=%d low1=%d\n", s->fps, s->low1);
+    if (g_statsShared != NULL) {
+        __atomic_store_n(g_statsShared + 0, s->fps, __ATOMIC_RELAXED);
+        __atomic_store_n(g_statsShared + 1, s->fps_min, __ATOMIC_RELAXED);
+        __atomic_store_n(g_statsShared + 2, s->fps_max, __ATOMIC_RELAXED);
+        __atomic_store_n(g_statsShared + 3, s->low1, __ATOMIC_RELAXED);
+        zl_store_shared_float(g_statsShared + 4, s->fps_avg);
+        zl_store_shared_float(g_statsShared + 5, s->frametime_ms);
+    }
+}
 
 void calculateFPS() {
-    atomic_fetch_add(&frameCount, 1);
-    time_t currentTime = time(NULL);
-
-    if (currentTime != lastTime) {
-        lastTime = currentTime;
-        int c = atomic_exchange(&frameCount, 0);
-        atomic_store(&fps, c);
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    const uint64_t now = (uint64_t)t.tv_sec * 1000000000ULL + (uint64_t)t.tv_nsec;
+    if (g_stats.last_frame_ns != 0) {
+        const uint64_t elapsed = now - g_stats.last_frame_ns;
+        const uint32_t delta_us = elapsed > 0 ? (uint32_t)(elapsed / 1000ULL) : 0;
+        g_stats.frame_deltas_us[g_stats.ring_idx++ & 255U] = delta_us;
+        if (g_stats.sample_count < 256U) g_stats.sample_count++;
+    }
+    g_stats.last_frame_ns = now;
+    if (now >= g_stats.next_publish_ns) {
+        g_stats.next_publish_ns = now + 1000000000ULL;
+        zl_publish(&g_stats);
     }
 
     if (!pojav_environ->hasGraphicOutput && pojav_environ->dalvikJavaVMPtr && pojav_environ->bridgeClazz && pojav_environ->method_onGraphicOutput) {
         pojav_environ->hasGraphicOutput = true;
-
         JNIEnv *dalvikEnv;
         (*pojav_environ->dalvikJavaVMPtr)->AttachCurrentThread(pojav_environ->dalvikJavaVMPtr, &dalvikEnv, NULL);
         (*dalvikEnv)->CallStaticVoidMethod(dalvikEnv, pojav_environ->bridgeClazz, pojav_environ->method_onGraphicOutput);
         (*pojav_environ->dalvikJavaVMPtr)->DetachCurrentThread(pojav_environ->dalvikJavaVMPtr);
     }
+}
+
+EXTERNAL_API JNIEXPORT void JNICALL
+Java_com_movtery_zalithlauncher_bridge_ZLBridge_registerStatsBuffer(JNIEnv* env, jclass clazz, jobject buf) {
+    (void)clazz;
+    g_statsShared = (int32_t*)(*env)->GetDirectBufferAddress(env, buf);
 }
 
 EXTERNAL_API JNIEXPORT void JNICALL
@@ -297,7 +374,8 @@ Java_org_lwjgl_vulkan_VK_onVKFrame(ABI_COMPAT JNIEnv *env, ABI_COMPAT jclass thi
 
 EXTERNAL_API JNIEXPORT jint JNICALL
 Java_org_lwjgl_glfw_CallbackBridge_getCurrentFps(JNIEnv *env, jclass clazz) {
-    return atomic_load(&fps);
+    (void)env; (void)clazz;
+    return g_stats.fps;
 }
 
 EXTERNAL_API JNIEXPORT jlong JNICALL
@@ -305,7 +383,6 @@ Java_org_lwjgl_vulkan_VK_getVulkanDriverHandle(ABI_COMPAT JNIEnv *env, ABI_COMPA
     printf("EGLBridge: LWJGL-side Vulkan loader requested the Vulkan handle\n");
     return (jlong) maybe_load_vulkan();
 }
-
 EXTERNAL_API void pojavSwapInterval(int interval) {
     if (pojav_environ->config_renderer == RENDERER_VK_ZINK
      || pojav_environ->config_renderer == RENDERER_GL4ES)

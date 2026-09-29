@@ -81,6 +81,7 @@ public final class ZLBridge {
     @Keep public static native void fsrInit(int qualityPreset);
     @Keep public static native void fsrSetQuality(int qualityPreset);
     @Keep public static native void fpsLimitSet(int fps);
+    @Keep public static native void registerStatsBuffer(java.nio.ByteBuffer buf);
 
     static {
         NativeLibraryLoader.loadExitHookLib();

@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -150,7 +151,22 @@ import androidx.core.content.ContextCompat
 import com.movtery.zalithlauncher.game.recorder.MediaProjectionForegroundService
 import org.lwjgl.glfw.CallbackBridge
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.ArrayDeque
 import kotlin.time.Duration.Companion.milliseconds
+
+@Immutable
+data class PerfStats(
+    val fps: Int,
+    val min: Int,
+    val max: Int,
+    val avg: Float,
+    val frametimeMs: Float,
+    val low1: Int,
+    val heapUsedMb: Int,
+    val heapMaxMb: Int
+)
 
 private const val TAG = "GameScreen"
 
@@ -175,29 +191,45 @@ private class GameViewModel(
     /** 鼠标触摸指针处理层占用指针列表 */
     var occupiedPointers = mutableSetOf<PointerId>()
 
-    /** 游戏内帧率状态 */
-    var gameFps by mutableIntStateOf(0)
+    /** 游戏内性能状态 */
+    private val statsBuf = ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder())
+    var perfStats by mutableStateOf(PerfStats(0, 0, 0, 0f, 0f, 0, 0, 0))
         private set
-    private var fpsJob: Job? = null
-    /** 开始帧率捕获 */
-    fun startFpsCapture() {
-        //开启一个新的协程，每秒更新一次帧率数据
-        fpsJob = viewModelScope.launch(Dispatchers.Default) {
+    private val sparklineBuffer = ArrayDeque<PerfStats>(8)
+    val sparkline: List<PerfStats>
+        get() = synchronized(sparklineBuffer) { sparklineBuffer.toList() }
+    private var perfJob: Job? = null
+
+    fun startPerfCapture() {
+        perfJob?.cancel()
+        ZLBridge.registerStatsBuffer(statsBuf)
+        perfJob = viewModelScope.launch(Dispatchers.Default) {
+            val runtime = Runtime.getRuntime()
             while (true) {
-                runCatching {
-                    ensureActive()
-                }.onFailure {
-                    break
+                runCatching { ensureActive() }.onFailure { break }
+                val sample = PerfStats(
+                    fps = statsBuf.getInt(0),
+                    min = statsBuf.getInt(4),
+                    max = statsBuf.getInt(8),
+                    low1 = statsBuf.getInt(12),
+                    avg = statsBuf.getFloat(16),
+                    frametimeMs = statsBuf.getFloat(20),
+                    heapUsedMb = ((runtime.totalMemory() - runtime.freeMemory()) shr 20).toInt(),
+                    heapMaxMb = (runtime.maxMemory() shr 20).toInt()
+                )
+                perfStats = sample
+                synchronized(sparklineBuffer) {
+                    sparklineBuffer.addLast(sample)
+                    while (sparklineBuffer.size > 8) sparklineBuffer.removeFirst()
                 }
-                gameFps = CallbackBridge.getCurrentFps()
                 delay(1000L.milliseconds)
             }
         }
     }
-    /** 停止帧率捕获 */
-    fun stopFpsCapture() {
-        fpsJob?.cancel()
-        fpsJob = null
+
+    fun stopPerfCapture() {
+        perfJob?.cancel()
+        perfJob = null
     }
 
     var editorRefresh by mutableIntStateOf(0)
@@ -807,20 +839,13 @@ fun GameScreen(
             }
         } else {
             if (AllSettings.showMenuBall.state) {
-                //在这里根据设置决定是否启用帧率捕获协程
-                val showFps = AllSettings.showFPS.state
-                DisposableEffect(showFps) {
-                    if (showFps) viewModel.startFpsCapture()
-                    onDispose {
-                        viewModel.stopFpsCapture()
-                    }
+                DisposableEffect(Unit) {
+                    viewModel.startPerfCapture()
+                    onDispose { viewModel.stopPerfCapture() }
                 }
 
-                val gameFps: Int? = if (showFps) {
-                    viewModel.gameFps
-                } else {
-                    null
-                }
+                val perfStats = if (AllSettings.showFPS.state) viewModel.perfStats else null
+                val sparkline = if (perfStats != null) viewModel.sparkline else emptyList()
 
                 DraggableGameBall(
                     position = AllSettings.menuBallPos.state,
@@ -830,8 +855,8 @@ fun GameScreen(
                     onSavePos = {
                         AllSettings.menuBallPos.save()
                     },
-                    gameFps = gameFps,
-                    showMemory = AllSettings.showMemory.state,
+                    stats = perfStats,
+                    sparkline = sparkline,
                     opened = viewModel.gameMenuState == MenuState.SHOW,
                     alpha = AllSettings.menuBallOpacity.state / 100f,
                     onClick = {

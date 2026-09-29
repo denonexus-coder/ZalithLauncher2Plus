@@ -20,13 +20,14 @@ package com.movtery.zalithlauncher.ui.screens.game.elements
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,24 +46,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.recorder.RecordingState
+import com.movtery.zalithlauncher.ui.screens.game.PerfStats
 import com.movtery.zalithlauncher.ui.components.FloatingBall
-import com.movtery.zalithlauncher.ui.screens.content.elements.MemoryPreview
 
 @Composable
 fun DraggableGameBall(
     position: Offset,
     onPositionChanged: (Offset) -> Unit,
     onSavePos: () -> Unit,
-    gameFps: Int?,
-    showMemory: Boolean,
+    stats: PerfStats?,
+    sparkline: List<PerfStats>,
     opened: Boolean,
     alpha: Float = 1f,
     onClick: () -> Unit = {},
@@ -87,8 +92,8 @@ fun DraggableGameBall(
         alpha = alpha
     ) {
         GameBallContent(
-            gameFps = gameFps,
-            showMemory = showMemory,
+            stats = stats,
+            sparkline = sparkline,
             opened = opened,
             isRecordingActive = isRecordingActive,
             isPaused = recordingState == RecordingState.PAUSED,
@@ -187,9 +192,78 @@ private fun Long.formatElapsedTime(): String {
 }
 
 @Composable
+private fun PerformancePanel(stats: PerfStats, sparkline: List<PerfStats>) {
+    val numericStyle = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum")
+    val path = remember { Path() }
+    val summary = remember { StringBuilder() }
+    val maxRam = stats.heapMaxMb.coerceAtLeast(1)
+    val ramProgress = (stats.heapUsedMb.toFloat() / maxRam).coerceIn(0f, 1f)
+    val peakFps = (sparkline.maxOfOrNull { it.fps } ?: stats.fps).coerceAtLeast(1).toFloat()
+    val fpsColor = fpsBandColor(stats.fps)
+    val frameColor = frameTimeBandColor(stats.frametimeMs)
+    val ramColor = ramBandColor(ramProgress)
+    summary.setLength(0)
+    summary.append("avg ").append(stats.avg.toInt()).append(" · min ").append(stats.min).append(" · max ").append(stats.max)
+
+    Column(modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("FPS ${stats.fps}", color = fpsColor, style = numericStyle)
+            Canvas(Modifier.width(48.dp).height(16.dp)) {
+                if (sparkline.size > 1) {
+                    path.reset()
+                    sparkline.forEachIndexed { index, point ->
+                        val x = size.width * index / (sparkline.size - 1)
+                        val y = size.height - (point.fps / peakFps * size.height).coerceIn(0f, size.height)
+                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    drawPath(path, color = fpsColor, style = Stroke(width = 2f))
+                }
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(summary.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = numericStyle)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(formatTenths(stats.frametimeMs) + "ms", color = frameColor, style = numericStyle)
+            Spacer(Modifier.width(6.dp))
+            Text("1% low ${stats.low1}", color = fpsColor, style = numericStyle)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("RAM ${stats.heapUsedMb}M", color = ramColor, style = numericStyle)
+            Spacer(Modifier.width(5.dp))
+            LinearProgressIndicator(progress = ramProgress, modifier = Modifier.width(54.dp).height(4.dp), color = ramColor, trackColor = Color.White.copy(alpha = 0.18f))
+            Spacer(Modifier.width(5.dp))
+            Text("máx ${stats.heapMaxMb}M", color = MaterialTheme.colorScheme.onSurfaceVariant, style = numericStyle)
+        }
+    }
+}
+
+private fun fpsBandColor(fps: Int) = when {
+    fps >= 50 -> Color(0xFF4ADE80)
+    fps >= 30 -> Color(0xFFFACC15)
+    else -> Color(0xFFF87171)
+}
+
+private fun frameTimeBandColor(ms: Float) = when {
+    ms <= 20f -> Color(0xFF4ADE80)
+    ms <= 33f -> Color(0xFFFACC15)
+    else -> Color(0xFFF87171)
+}
+
+private fun ramBandColor(progress: Float) = when {
+    progress < 0.70f -> Color(0xFF4ADE80)
+    progress <= 0.90f -> Color(0xFFFACC15)
+    else -> Color(0xFFF87171)
+}
+
+private fun formatTenths(value: Float): String {
+    val tenths = (value * 10f).toInt().coerceAtLeast(0)
+    return "${tenths / 10}.${tenths % 10}"
+}
+
+@Composable
 private fun GameBallContent(
-    gameFps: Int?,
-    showMemory: Boolean,
+    stats: PerfStats?,
+    sparkline: List<PerfStats>,
     opened: Boolean,
     isRecordingActive: Boolean = false,
     isPaused: Boolean = false,
@@ -200,110 +274,18 @@ private fun GameBallContent(
     onStopRecording: () -> Unit = {},
     onToggleMic: () -> Unit = {},
 ) {
-    val showFps = remember(gameFps) {
-        gameFps != null
-    }
-
-    Row(
-        modifier = Modifier.padding(all = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(28.dp),
-            contentAlignment = Alignment.Center
-        ) {
+    Row(modifier = Modifier.padding(all = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             Crossfade(opened) { state ->
-                Icon(
-                    modifier = Modifier.size(24.dp),
-                    painter = painterResource(
-                        if (state) {
-                            R.drawable.ic_menu_open
-                        } else {
-                            R.drawable.ic_menu
-                        }
-                    ),
-                    contentDescription = null
-                )
+                Icon(modifier = Modifier.size(24.dp), painter = painterResource(if (state) R.drawable.ic_menu_open else R.drawable.ic_menu), contentDescription = null)
             }
         }
-
-        AnimatedVisibility(
-            visible = showFps || showMemory
-        ) {
+        CustomAnimatedVisibility(visible = stats != null) {
             Spacer(Modifier.width(4.dp))
+            stats?.let { PerformancePanel(it, sparkline) }
         }
-
-        //实际内容
-        Column(
-            modifier = Modifier
-                .wrapContentSize()
-                .animateContentSize()
-        ) {
-            CustomAnimatedVisibility(
-                visible = showFps || showMemory
-            ) {
-                Spacer(Modifier.height(4.dp))
-            }
-            //帧率显示
-            CustomAnimatedVisibility(
-                visible = showFps
-            ) {
-                Text(
-                    modifier = Modifier.padding(end = 4.dp),
-                    text = "FPS: ${gameFps ?: 0}",
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-            //内存显示
-            CustomAnimatedVisibility(
-                visible = showMemory
-            ) {
-                MemoryPreview(
-                    modifier = Modifier
-                        .width(168.dp)
-                        .padding(end = 4.dp),
-                    mainColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                    backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    textStyle = MaterialTheme.typography.labelSmall,
-                    usedText = { usedMemory, totalMemory ->
-                        "${usedMemory.toInt()}MB/${totalMemory.toInt()}MB"
-                    }
-                )
-            }
-            CustomAnimatedVisibility(
-                visible = showFps || showMemory
-            ) {
-                Spacer(Modifier.height(4.dp))
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isRecordingActive,
-            enter = expandIn(expandFrom = Alignment.CenterStart) + fadeIn(),
-            exit = shrinkOut(shrinkTowards = Alignment.CenterStart) + fadeOut(),
-        ) {
-            RecordingControlContent(
-                isPaused = isPaused,
-                elapsedMs = elapsedMs,
-                micEnabled = micEnabled,
-                onPause = onPauseRecording,
-                onResume = onResumeRecording,
-                onStop = onStopRecording,
-                onToggleMic = onToggleMic,
-            )
+        AnimatedVisibility(visible = isRecordingActive, enter = expandIn(expandFrom = Alignment.CenterStart) + fadeIn(), exit = shrinkOut(shrinkTowards = Alignment.CenterStart) + fadeOut()) {
+            RecordingControlContent(isPaused = isPaused, elapsedMs = elapsedMs, micEnabled = micEnabled, onPause = onPauseRecording, onResume = onResumeRecording, onStop = onStopRecording, onToggleMic = onToggleMic)
         }
     }
-}
-
-@Composable
-private fun ColumnScope.CustomAnimatedVisibility(
-    visible: Boolean,
-    content: @Composable (AnimatedVisibilityScope.() -> Unit)
-) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = expandIn(expandFrom = Alignment.CenterStart) + fadeIn(),
-        exit = shrinkOut(shrinkTowards = Alignment.CenterStart) + fadeOut(),
-        content = content
-    )
 }
