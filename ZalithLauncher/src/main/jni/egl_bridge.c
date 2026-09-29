@@ -28,6 +28,7 @@
 #include <environ/environ.h>
 #include <android/dlext.h>
 #include <time.h>
+#include <stdatomic.h>
 #include "utils.h"
 #include "ctxbridges/bridge_tbl.h"
 #include "ctxbridges/osm_bridge.h"
@@ -265,18 +266,18 @@ void* maybe_load_vulkan() {
     return (void*) strtoul(getenv("VULKAN_PTR"), NULL, 0x10);
 }
 
-static int frameCount = 0;
-static int fps = 0;
+static _Atomic int frameCount = 0;
+static _Atomic int fps = 0;
 static time_t lastTime = 0;
 
 void calculateFPS() {
-    frameCount++;
+    atomic_fetch_add(&frameCount, 1);
     time_t currentTime = time(NULL);
 
     if (currentTime != lastTime) {
         lastTime = currentTime;
-        fps = frameCount;
-        frameCount = 0;
+        int c = atomic_exchange(&frameCount, 0);
+        atomic_store(&fps, c);
     }
 
     if (!pojav_environ->hasGraphicOutput && pojav_environ->dalvikJavaVMPtr && pojav_environ->bridgeClazz && pojav_environ->method_onGraphicOutput) {
@@ -296,7 +297,7 @@ Java_org_lwjgl_vulkan_VK_onVKFrame(ABI_COMPAT JNIEnv *env, ABI_COMPAT jclass thi
 
 EXTERNAL_API JNIEXPORT jint JNICALL
 Java_org_lwjgl_glfw_CallbackBridge_getCurrentFps(JNIEnv *env, jclass clazz) {
-    return fps;
+    return atomic_load(&fps);
 }
 
 EXTERNAL_API JNIEXPORT jlong JNICALL

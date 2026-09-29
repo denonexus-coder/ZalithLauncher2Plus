@@ -6,6 +6,7 @@
 #include <environ/environ.h>
 #include <android/log.h>
 #include "osm_bridge.h"
+#include <framegen/fps_limit.h>
 
 static const char* g_LogTag = "GLBridge";
 static __thread osm_render_window_t* currentBundle;
@@ -135,6 +136,8 @@ void osm_swap_buffers() {
     if(currentBundle->nativeSurface != NULL && !currentBundle->disable_rendering)
         if(ANativeWindow_unlockAndPost(currentBundle->nativeSurface) != 0)
             osm_release_window();
+
+    fpslimit_throttle();
 }
 
 void osm_setup_window() {

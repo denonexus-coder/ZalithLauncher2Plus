@@ -39,12 +39,14 @@ void fpslimit_throttle(void) {
                    + (now.tv_nsec - g_lastSwap.tv_nsec);
 
     if (elapsedNs < targetNs) {
-        long sleepNs = targetNs - elapsedNs;
-        struct timespec req = {
-            .tv_sec = sleepNs / 1000000000L,
-            .tv_nsec = sleepNs % 1000000000L
-        };
-        nanosleep(&req, NULL);
+        struct timespec deadline;
+        deadline.tv_sec = g_lastSwap.tv_sec;
+        deadline.tv_nsec = g_lastSwap.tv_nsec + targetNs;
+        if (deadline.tv_nsec >= 1000000000L) {
+            deadline.tv_sec += 1;
+            deadline.tv_nsec -= 1000000000L;
+        }
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL);
         clock_gettime(CLOCK_MONOTONIC, &g_lastSwap);
     } else {
         g_lastSwap = now;

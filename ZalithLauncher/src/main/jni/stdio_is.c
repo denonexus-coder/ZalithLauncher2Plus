@@ -32,7 +32,6 @@ static bool recordBuffer(char* buf, ssize_t len) {
     if (latestlog_fd != -1)
     {
         write(latestlog_fd, buf, len);
-        fdatasync(latestlog_fd);
     }
     return true;
 }

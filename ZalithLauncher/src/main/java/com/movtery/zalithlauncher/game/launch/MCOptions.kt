@@ -37,6 +37,15 @@ object MCOptions {
     private val lock = Any()
     private val parameterMap = ConcurrentHashMap<String, String>()
     private var fileObserver: FileObserver? = null
+    private val reloadHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var reloadPending: Runnable? = null
+
+    private fun scheduleReload() {
+        reloadPending?.let { reloadHandler.removeCallbacks(it) }
+        reloadPending = Runnable { synchronized(lock) { loadInternal() } }.also {
+            reloadHandler.postDelayed(it, 500L)
+        }
+    }
     private lateinit var version: Version
 
     private val _refreshKey = MutableStateFlow(false)
@@ -160,21 +169,13 @@ object MCOptions {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             object : FileObserver(observeTarget, MODIFY) {
                 override fun onEvent(event: Int, path: String?) {
-                    if (event and MODIFY != 0) {
-                        synchronized(lock) {
-                            loadInternal()
-                        }
-                    }
+                    if (event and MODIFY != 0) scheduleReload()
                 }
             }
         } else {
             object : FileObserver(observeTarget.absolutePath, MODIFY) {
                 override fun onEvent(event: Int, path: String?) {
-                    if (event and MODIFY != 0) {
-                        synchronized(lock) {
-                            loadInternal()
-                        }
-                    }
+                    if (event and MODIFY != 0) scheduleReload()
                 }
             }
         }
