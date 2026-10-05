@@ -4,6 +4,23 @@
 #include <cmath>
 #include <cstring>
 
+/*
+ * FSR hook — versão corrigida:
+ * 1) Todos os símbolos ficam ocultos (visibility hidden) exceto a API pública
+ *    (fsr_init/fsr_apply/fsr_set_quality/fsr_destroy/fsr_query_active e
+ *    hook_eglGetProcAddress). Isto impede que a lib intercete, por ordem de
+ *    carregamento, os símbolos glGetIntegerv/glViewport/glBindFramebuffer que
+ *    o Krypton Wrapper / LWJGL resolvem — causa original do SIGSEGV (pc=0x0)
+ *    em libzl_fsr.so glGetIntegerv+0x1c quando o FSR não foi inicializado.
+ * 2) Todos os wrappers fazem resolução preguiçosa (lazy) das funções reais
+ *    e NUNCA chamam um ponteiro nulo. Sem contexto GL, simplesmente passam
+ *    a chamada adiante (ou não fazem nada) — zero interrupção na inicialização.
+ */
+
+/* Apenas a API pública é exportada da lib */
+#define FSR_API extern "C" __attribute__((visibility("default")))
+#define FSR_LOCAL __attribute__((visibility("hidden")))
+
 static bool g_initialized = false;
 static bool g_requested = false;
 static bool g_active = false;
@@ -34,14 +51,14 @@ static void (*real_glBindVertexArray)(GLuint array) = nullptr;
 static void (*real_glDeleteVertexArrays)(GLsizei n, const GLuint* arrays) = nullptr;
 static void (*real_glBlitFramebuffer)(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter) = nullptr;
 
-static void checkError(const char* tag) {
+FSR_LOCAL static void checkError(const char* tag) {
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
         LOGE("%s: GL error 0x%x", tag, err);
     }
 }
 
-static void calcRenderResolution(int targetW, int targetH, int preset, int* outW, int* outH) {
+FSR_LOCAL static void calcRenderResolution(int targetW, int targetH, int preset, int* outW, int* outH) {
     float scale;
     switch (preset) {
         case 1: scale = 1.3f; break;
@@ -56,7 +73,7 @@ static void calcRenderResolution(int targetW, int targetH, int preset, int* outW
     *outH = (*outH + 1) & ~1;
 }
 
-static GLuint compileShader(GLenum type, const char* source) {
+FSR_LOCAL static GLuint compileShader(GLenum type, const char* source) {
     GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
@@ -72,7 +89,7 @@ static GLuint compileShader(GLenum type, const char* source) {
     return shader;
 }
 
-static void* resolveFromGLES(const char* name) {
+FSR_LOCAL static void* resolveFromGLES(const char* name) {
     // Load directly from GLES libs — never through eglGetProcAddress which may be
     // hooked by the renderer (e.g. Krypton Wrapper), causing circular resolution.
     static void* gles = nullptr;
@@ -87,39 +104,65 @@ static void* resolveFromGLES(const char* name) {
     return sym;
 }
 
-static void getRealGLFunctions() {
-    if (real_glBindFramebuffer) return;
-    real_glBindFramebuffer  = (void (*)(GLenum, GLuint))         resolveFromGLES("glBindFramebuffer");
-    real_glViewport         = (void (*)(GLint, GLint, GLsizei, GLsizei)) resolveFromGLES("glViewport");
-    real_glGetIntegerv      = (void (*)(GLenum, GLint*))          resolveFromGLES("glGetIntegerv");
-    real_glGenVertexArrays  = (void (*)(GLsizei, GLuint*))        resolveFromGLES("glGenVertexArrays");
-    real_glBindVertexArray  = (void (*)(GLuint))                  resolveFromGLES("glBindVertexArray");
-    real_glDeleteVertexArrays = (void (*)(GLsizei, const GLuint*))resolveFromGLES("glDeleteVertexArrays");
-    real_glBlitFramebuffer  = (void (*)(GLint,GLint,GLint,GLint,GLint,GLint,GLint,GLint,GLbitfield,GLenum)) resolveFromGLES("glBlitFramebuffer");
-    if (!real_glBindFramebuffer || !real_glViewport || !real_glGetIntegerv ||
-        !real_glGenVertexArrays || !real_glBindVertexArray ||
-        !real_glDeleteVertexArrays || !real_glBlitFramebuffer) {
-        LOGE("Failed to resolve real GL functions");
+/* Resolve the real (non-hooked) function pointers. Safe to call any time;
+ * returns false if some function could not be resolved yet (no GL yet). */
+FSR_LOCAL static bool ensureRealGLFunctions() {
+    if (!real_glBindFramebuffer) {
+        real_glBindFramebuffer  = (void (*)(GLenum, GLuint))         resolveFromGLES("glBindFramebuffer");
+        real_glViewport         = (void (*)(GLint, GLint, GLsizei, GLsizei)) resolveFromGLES("glViewport");
+        real_glGetIntegerv      = (void (*)(GLenum, GLint*))          resolveFromGLES("glGetIntegerv");
+        real_glGenVertexArrays  = (void (*)(GLsizei, GLuint*))        resolveFromGLES("glGenVertexArrays");
+        real_glBindVertexArray  = (void (*)(GLuint))                  resolveFromGLES("glBindVertexArray");
+        real_glDeleteVertexArrays = (void (*)(GLsizei, const GLuint*))resolveFromGLES("glDeleteVertexArrays");
+        real_glBlitFramebuffer  = (void (*)(GLint,GLint,GLint,GLint,GLint,GLint,GLint,GLint,GLbitfield,GLenum)) resolveFromGLES("glBlitFramebuffer");
     }
+    return real_glBindFramebuffer && real_glViewport && real_glGetIntegerv &&
+           real_glGenVertexArrays && real_glBindVertexArray &&
+           real_glDeleteVertexArrays && real_glBlitFramebuffer;
+}
+
+FSR_LOCAL static void* ensureRealEglGetProcAddress(const char* name) {
+    if (!real_eglGetProcAddress) {
+        // Real EGL function: resolve lazily, WITHOUT calling any possibly
+        // hooked eglGetProcAddress (avoid recursion). RTLD_NEXT reaches the
+        // real implementation in the EGL library loaded by the process.
+        real_eglGetProcAddress = (void* (*)(const char*))dlsym(RTLD_NEXT, "eglGetProcAddress");
+        if (!real_eglGetProcAddress) {
+            void* egl = dlopen("libEGL.so", RTLD_LAZY | RTLD_NOLOAD);
+            if (!egl) egl = dlopen("libEGL.so", RTLD_LAZY | RTLD_LOCAL);
+            if (egl) real_eglGetProcAddress = (void* (*)(const char*))dlsym(egl, "eglGetProcAddress");
+        }
+        if (!real_eglGetProcAddress) {
+            LOGE("FSR: cannot resolve real eglGetProcAddress (missing %s)", name);
+        }
+    }
+    return real_eglGetProcAddress ? real_eglGetProcAddress(name) : nullptr;
 }
 
 /*
  * Hooked eglGetProcAddress — returns our wrapper for intercepted functions,
  * passes through everything else to the real eglGetProcAddress.
- * Called from any library whose PLT entry for eglGetProcAddress was hooked by bytehook.
+ * Bytehook calls this by direct pointer, so it MUST stay exported (FSR_API).
+ * Fully guarded: never dereferences a null pointer.
  */
-extern "C" void* hook_eglGetProcAddress(const char* name) {
+FSR_API void* hook_eglGetProcAddress(const char* name) {
+    if (name == nullptr) return ensureRealEglGetProcAddress(name);
     if (strcmp(name, "glBindFramebuffer") == 0) return (void*)glBindFramebuffer;
     if (strcmp(name, "glViewport") == 0) return (void*)glViewport;
     if (strcmp(name, "glGetIntegerv") == 0) return (void*)glGetIntegerv;
-    return real_eglGetProcAddress(name);
+    return ensureRealEglGetProcAddress(name);
 }
 
 /*
  * Exported wrapper — when the game binds framebuffer 0 (the default / EGL surface),
  * redirect to our lower-resolution render FBO so the game renders at reduced resolution.
+ * HIDDEN: only reachable via bytehook / eglGetProcAddress hook, never by symbol
+ * interposition. If the real functions are not resolvable yet, falls through safely.
  */
-extern "C" void glBindFramebuffer(GLenum target, GLuint framebuffer) {
+FSR_LOCAL void glBindFramebuffer(GLenum target, GLuint framebuffer) {
+    if (!real_glBindFramebuffer) {
+        if (!ensureRealGLFunctions()) return; /* no GL yet — nothing we can do */
+    }
     if (g_active && g_renderFBO != 0 && framebuffer == 0) {
         real_glBindFramebuffer(target, g_renderFBO);
         return;
@@ -129,10 +172,12 @@ extern "C" void glBindFramebuffer(GLenum target, GLuint framebuffer) {
 
 /*
  * Exported wrapper — clamp viewport to the render resolution when FSR is active.
- * This ensures the rasterizer only generates fragments within the lower-res FBO,
- * delivering the full FPS gain from reduced pixel processing.
+ * HIDDEN + fully guarded.
  */
-extern "C" void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
+FSR_LOCAL void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
+    if (!real_glViewport) {
+        if (!ensureRealGLFunctions()) return;
+    }
     if (g_active) {
         GLsizei maxW = (GLsizei)g_renderWidth - x;
         GLsizei maxH = (GLsizei)g_renderHeight - y;
@@ -149,8 +194,15 @@ extern "C" void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
 /*
  * Exported wrapper — spoof GL_FRAMEBUFFER_BINDING queries so the game always sees 0
  * when our redirect FBO is active. This prevents state save/restore breakage.
+ * HIDDEN + fully guarded. THIS is the function that used to SIGSEGV with pc=0x0.
  */
-extern "C" void glGetIntegerv(GLenum pname, GLint* data) {
+FSR_LOCAL void glGetIntegerv(GLenum pname, GLint* data) {
+    if (!real_glGetIntegerv) {
+        if (!ensureRealGLFunctions()) {
+            return; /* never crash: without a real function there is nothing to spoof */
+        }
+    }
+    if (data == nullptr) return;
     real_glGetIntegerv(pname, data);
     if (g_active && g_renderFBO != 0) {
         if (pname == GL_FRAMEBUFFER_BINDING &&
@@ -160,7 +212,7 @@ extern "C" void glGetIntegerv(GLenum pname, GLint* data) {
     }
 }
 
-static bool initHooks() {
+FSR_LOCAL static bool initHooks() {
     void* bh = dlopen("libbytehook.so", RTLD_NOW);
     if (!bh) {
         LOGD("bytehook not available — FSR running without FPS gain");
@@ -174,13 +226,11 @@ static bool initHooks() {
 
     if (!bytehook_init || !bytehook_hook_all) {
         LOGD("bytehook symbols not found");
-        dlclose(bh);
         return false;
     }
 
     if (bytehook_init(0, false) != 0) {
         LOGD("bytehook init failed");
-        dlclose(bh);
         return false;
     }
 
@@ -193,7 +243,7 @@ static bool initHooks() {
     return true;
 }
 
-static bool initFSRResources() {
+FSR_LOCAL static bool initFSRResources() {
     GLint prevProgram, prevVAO, prevArrayBuffer, prevTexture, prevFBO;
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
@@ -286,7 +336,7 @@ static bool initFSRResources() {
     return true;
 }
 
-extern "C" void fsr_init(int qualityPreset) {
+FSR_API void fsr_init(int qualityPreset) {
     g_requested = true;
     g_qualityPreset = qualityPreset;
     g_initialized = false;
@@ -300,7 +350,10 @@ extern "C" void fsr_init(int qualityPreset) {
         return;
     }
 
-    getRealGLFunctions();
+    if (!ensureRealGLFunctions()) {
+        LOGE("Failed to resolve real GL functions");
+        return; /* stay inactive — never break the launch */
+    }
     if (!g_hooksActive) {
         g_hooksActive = initHooks();
     }
@@ -343,7 +396,7 @@ extern "C" void fsr_init(int qualityPreset) {
     real_glBindFramebuffer(GL_FRAMEBUFFER, g_renderFBO);
 }
 
-static bool fsrRebuildFramebuffers() {
+FSR_LOCAL static bool fsrRebuildFramebuffers() {
     GLint prevTexture, prevFBO, prevRBO;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTexture);
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
@@ -393,7 +446,9 @@ static bool fsrRebuildFramebuffers() {
     return true;
 }
 
-extern "C" void fsr_apply() {
+FSR_API void fsr_apply() {
+    /* Never requested (no -Dzlith.fsr.quality): do nothing at all.
+     * This is what makes startup safe even when the lib is dlopen'ed. */
     if (!g_requested) return;
     if (g_active) {
         EGLDisplay display = eglGetCurrentDisplay();
@@ -435,6 +490,8 @@ extern "C" void fsr_apply() {
 
 do_fsr:
     {
+        if (!ensureRealGLFunctions() || !g_fsrProgram) return;
+
         GLint prevProgram, prevVAO, prevArrayBuffer, prevActiveTexture, prevTexture;
         GLint prevReadFBO, prevDrawFBO, prevRenderbuffer;
         glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
@@ -494,17 +551,21 @@ do_fsr:
     }
 }
 
-extern "C" void fsr_set_quality(int qualityPreset) {
+FSR_API int fsr_query_active(void) {
+    return g_active ? 1 : 0;
+}
+
+FSR_API void fsr_set_quality(int qualityPreset) {
     g_qualityPreset = qualityPreset;
 }
 
-extern "C" void fsr_destroy() {
+FSR_API void fsr_destroy() {
     g_requested = false;
     g_active = false;
     g_initialized = false;
     g_hooksActive = false;
     if (g_fsrProgram) { glDeleteProgram(g_fsrProgram); g_fsrProgram = 0; }
-    if (g_quadVAO) { real_glDeleteVertexArrays(1, &g_quadVAO); g_quadVAO = 0; }
+    if (g_quadVAO && real_glDeleteVertexArrays) { real_glDeleteVertexArrays(1, &g_quadVAO); g_quadVAO = 0; }
     if (g_quadVBO) { glDeleteBuffers(1, &g_quadVBO); g_quadVBO = 0; }
     if (g_renderFBO) { glDeleteFramebuffers(1, &g_renderFBO); g_renderFBO = 0; }
     if (g_renderTexture) { glDeleteTextures(1, &g_renderTexture); g_renderTexture = 0; }
