@@ -203,25 +203,36 @@ class GameLauncher(
         }
     }
 
-    override fun dlopenEngine() {
-        super.dlopenEngine()
-        appendTitle("DLOPEN Renderer")
+   override fun dlopenEngine() {
+    super.dlopenEngine()
+    appendTitle("DLOPEN Renderer")
 
-        RendererPluginManager.selectedRendererPlugin?.let { renderer ->
-            val libs by renderer.getDlopenLibrary()
-            libs.forEach { libPath ->
-                ZLBridge.dlopen(libPath)
-            }
-        }
-
-        ZLBridge.dlopen("${PathManager.DIR_NATIVE_LIB}/libzl_fsr.so")
-
-        val rendererLib = loadGraphicsLibrary() ?: return
-        if (!ZLBridge.dlopen(rendererLib) && !ZLBridge.dlopen(findInLdLibPath(rendererLib))) {
-            Logger.error(TAG, "Failed to load renderer $rendererLib")
+    RendererPluginManager.selectedRendererPlugin?.let { renderer ->
+        val libs by renderer.getDlopenLibrary()
+        libs.forEach { libPath ->
+            ZLBridge.dlopen(libPath)
         }
     }
 
+    // FSR: carregamento NÃO crítico. Qualquer falha aqui é registada e
+    // ignorada — nunca interrompe a inicialização do jogo.
+    try {
+        val fsrLib = File(PathManager.DIR_NATIVE_LIB, "libzl_fsr.so")
+        if (fsrLib.exists()) {
+            ZLBridge.dlopen(fsrLib.absolutePath)
+        } else {
+            Logger.warning(TAG, "libzl_fsr.so not found, FSR disabled")
+        }
+    } catch (e: Throwable) {
+        Logger.error(TAG, "Failed to load libzl_fsr.so (ignored): ${e.message}")
+    }
+
+    val rendererLib = loadGraphicsLibrary() ?: return
+    if (!ZLBridge.dlopen(rendererLib) && !ZLBridge.dlopen(findInLdLibPath(rendererLib))) {
+        Logger.error(TAG, "Failed to load renderer $rendererLib")
+    }
+   }
+   
     override fun progressFinalUserArgs(args: MutableList<String>, ramAllocation: Int) {
         super.progressFinalUserArgs(args, version.getRamAllocation(activity))
         if (Renderers.isCurrentRendererValid()) {
