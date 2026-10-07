@@ -11,6 +11,8 @@ extern void bigcore_init(void);
 #include <unistd.h>
 #include <pthread.h>
 
+#include "logger/logger.h"
+
 #define MASK_RENDER  (1u<<0)
 #define MASK_SERVER  (1u<<1)
 #define MASK_CHUNKS  (1u<<2)

@@ -39,6 +39,15 @@ Java_com_movtery_zalithlauncher_bridge_NativeIO_fastWrite(JNIEnv* env, jclass cl
         return JNI_FALSE;
     }
 
+    // Guarda de overflow: nunca escrever mais do que a capacidade real do buffer.
+    jlong capacity = env->GetDirectBufferCapacity(byteBuffer);
+    if (capacity >= 0 && dataSize > capacity) {
+        LOGE("fastWrite: dataSize %d > buffer capacity %lld", (int)dataSize, (long long)capacity);
+        munmap(map, dataSize);
+        close(fd);
+        return JNI_FALSE;
+    }
+
     // Cópia direta Zero-Copy do buffer Java para o ficheiro mapeado
     void* bufferData = env->GetDirectBufferAddress(byteBuffer);
     if (bufferData) {
@@ -81,9 +90,23 @@ Java_com_movtery_zalithlauncher_bridge_NativeIO_fastRead(JNIEnv* env, jclass cla
     posix_fadvise(fd, 0, fileSize, POSIX_FADV_SEQUENTIAL | POSIX_FADV_WILLNEED);
 
     void* bufferData = env->GetDirectBufferAddress(byteBuffer);
-    if (bufferData) {
-        std::memcpy(bufferData, map, fileSize);
+    if (!bufferData) {
+        munmap(map, fileSize);
+        close(fd);
+        return -1;
     }
+
+    // Guarda de overflow: o buffer de destino e limitado (4MB). Sem esta checagem
+    // um ficheiro maior causaria memory corruption nativa.
+    jlong capacity = env->GetDirectBufferCapacity(byteBuffer);
+    if (capacity < 0 || fileSize > capacity) {
+        LOGE("fastRead: file size %lld > buffer capacity %lld", (long long)fileSize, (long long)capacity);
+        munmap(map, fileSize);
+        close(fd);
+        return -1;
+    }
+
+    std::memcpy(bufferData, map, fileSize);
 
     munmap(map, fileSize);
     close(fd);

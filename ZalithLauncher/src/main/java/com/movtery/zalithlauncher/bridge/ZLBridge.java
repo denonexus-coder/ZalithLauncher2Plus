@@ -60,43 +60,31 @@ public final class ZLBridge {
 
     //Game
     @Keep public static native void initializeGameExitHook();
-    public static native void initIoHooks();
     @Keep public static native void setupExitMethod(Context context);
-    public static native void initIoHooks();
+
+    //Native I/O hooks (implemented in utils.c -> init_io_hooks em io_redirect_hook.cpp)
+    @Keep public static native void initIoHooks();
 
     //Launch
     @Keep public static native void setLdLibraryPath(String ldLibraryPath);
-    public static native void initIoHooks();
     @Keep public static native boolean dlopen(String libPath);
-    public static native void initIoHooks();
 
     //Render
     @Keep public static native void setupBridgeWindow(Object surface);
-    public static native void initIoHooks();
     @Keep public static native void releaseBridgeWindow();
-    public static native void initIoHooks();
     @Keep public static native void moveWindow(int xOffset, int yOffset);
-    public static native void initIoHooks();
     @Keep public static native int[] renderAWTScreenFrame();
-    public static native void initIoHooks();
 
     //Input
     @Keep public static native void sendInputData(int type, int i1, int i2, int i3, int i4);
-    public static native void initIoHooks();
     @Keep public static native void clipboardReceived(String data, String mimeTypeSub);
-    public static native void initIoHooks();
 
     //Utils
     @Keep public static native int chdir(String path);
-    public static native void initIoHooks();
     @Keep public static native void fsrInit(int qualityPreset);
-    public static native void initIoHooks();
     @Keep public static native void fsrSetQuality(int qualityPreset);
-    public static native void initIoHooks();
     @Keep public static native void fpsLimitSet(int fps);
-    public static native void initIoHooks();
     @Keep public static native void registerStatsBuffer(java.nio.ByteBuffer buf);
-    public static native void initIoHooks();
 
     static {
         NativeLibraryLoader.loadExitHookLib();

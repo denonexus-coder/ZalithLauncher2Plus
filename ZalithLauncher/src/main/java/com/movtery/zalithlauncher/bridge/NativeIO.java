@@ -15,7 +15,7 @@ public class NativeIO {
 
     static {
         try {
-            System.loadLibrary("zl_native");
+            System.loadLibrary("pojavexec");
         } catch (UnsatisfiedLinkError ignored) {}
     }
 

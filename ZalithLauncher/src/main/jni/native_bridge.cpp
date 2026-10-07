@@ -5,7 +5,11 @@
 #include <unistd.h>
 
 #define LOG_TAG "NativeBridge"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#include "logger/logger.h"
+
+// Definida em bigcoreaffinity.c (compilado como C). Sem extern "C" o C++
+// mangleia o nome e o linker falha com undefined symbol.
+extern "C" void bigcore_apply_to_render_thread(void);
 
 // Estrutura compacta para eventos (16 bytes)
 struct __attribute__((packed)) InputEvent {
@@ -31,7 +35,6 @@ Java_com_movtery_zalithlauncher_bridge_NativeBridge_sendEventsFast(JNIEnv* env, 
 // Função para vincular a thread atual aos núcleos rápidos (já usada no bigcoreaffinity, mas exposta aqui para Java)
 extern "C" JNIEXPORT void JNICALL
 Java_com_movtery_zalithlauncher_bridge_NativeBridge_bindCurrentThreadToBigCores(JNIEnv* env, jclass clazz) {
-    extern void bigcore_apply_to_render_thread(void);
     bigcore_apply_to_render_thread();
     LOGI("Java thread requested binding to BIG cores.");
 }

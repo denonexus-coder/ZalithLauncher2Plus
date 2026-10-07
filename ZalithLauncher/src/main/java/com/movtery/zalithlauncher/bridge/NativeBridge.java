@@ -9,10 +9,13 @@ public class NativeBridge {
     private static int eventCount = 0;
 
     static {
+        // As funcoes nativas desta classe vivem em libpojavexec.so.
+        // "zl_native" nunca existiu -> o System.loadLibrary falhava silenciosamente
+        // e a resolucao dos simbolos ficava dependente da ordem de inicializacao.
         try {
-            System.loadLibrary("zl_native"); // Ou o nome da tua lib principal
+            System.loadLibrary("pojavexec");
         } catch (UnsatisfiedLinkError e) {
-            // Fallback se a lib ainda não estiver compilada
+            // Ja carregada pelo ZLBridge - ignorar.
         }
     }
 

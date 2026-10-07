@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <string.h>
 #include "environ.h"
+#include "logger/logger.h"
+
 struct pojav_environ_s *pojav_environ;
 __attribute__((constructor)) void env_init() {
     char* strptr_env = getenv("POJAV_ENVIRON");

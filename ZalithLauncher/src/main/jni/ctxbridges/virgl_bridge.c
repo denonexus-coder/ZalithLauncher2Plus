@@ -15,6 +15,7 @@
 #include "egl_loader.h"
 #include "osmesa_loader.h"
 #include "renderer_config.h"
+#include "logger/logger.h"
 
 int (*vtest_main_p)(int argc, char **argv);
 void (*vtest_swap_buffers_p)(void);
@@ -49,7 +50,7 @@ bool loadSymbolsVirGL() {
     dlsym_EGL();
 
     char *fileName = calloc(1, 1024);
-    if (fileName == NULL) { LOGE("Failed to allocate fileName"); return; }
+    if (fileName == NULL) { LOGE("Failed to allocate fileName"); return false; }
 
     sprintf(fileName, "%s/libvirgl_test_server.so", getenv("POJAV_NATIVEDIR"));
     void *handle = dlopen(fileName, RTLD_LAZY);

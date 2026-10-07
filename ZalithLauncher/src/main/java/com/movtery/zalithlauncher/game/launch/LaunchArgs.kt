@@ -224,9 +224,16 @@ class LaunchArgs(
             }
         }
         argsList.add("-Dlog4j.configurationFile=${configFilePath.absolutePath}")
-        // Otimizações para MT6765: Limitar threads da JVM aos Big Cores
+        // Otimizações para MT6765: limitar a JVM aos núcleos Big.
+        // Tem de ser o ÚLTIMO -XX:ActiveProcessorCount da linha de comandos
+        // (Launcher.kt acrescenta outro antes de concatenar estes args) - o último vence.
         argsList.add("-XX:ActiveProcessorCount=4")
-        argsList.add("-XX:+UseShenandoahGC")
+        // Shenandoah só existe em OpenJDK 12+. Num runtime Java 8/11 esta flag é
+        // rejeitada com "Unrecognized VM option" e o JVM nem chega a arrancar,
+        // portanto só a aplicamos quando o runtime realmente a suporta.
+        if (runtime.javaVersion >= 17) {
+            argsList.add("-XX:+UseShenandoahGC")
+        }
         argsList.add("-Dminecraft.client.jar=${clientJar.absolutePath}")
         argsList.add("-Dminecraft.launcher.brand=${BuildKeys.LAUNCHER_NAME}")
         argsList.add("-Dminecraft.launcher.version=${BuildConfig.VERSION_NAME}")

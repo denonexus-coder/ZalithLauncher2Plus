@@ -125,6 +125,33 @@ abstract class Launcher(
         progressFinalUserArgs(args, effectiveRamAllocation)
 
         args.addAll(jvmArgs)
+
+        // --- Coerência da linha de comandos final ---
+        // Os args vindos do LaunchArgs chegam DEPOIS dos que acabámos de gerar,
+        // por isso são eles que mandam. Duas guarda são obrigatórias:
+        //   1) só pode existir UM -XX:ActiveProcessorCount (fica o último);
+        //   2) só pode existir UM colector - ter -XX:+UseG1GC e
+        //      -XX:+UseShenandoahGC na mesma linha faz o HotSpot abortar antes
+        //      de o jogo sequer arrancar.
+        val lastApcIndex = args.indexOfLast { it.startsWith("-XX:ActiveProcessorCount") }
+        if (lastApcIndex >= 0) {
+            for (i in args.indices.reversed()) {
+                if (i != lastApcIndex && args[i].startsWith("-XX:ActiveProcessorCount")) {
+                    args.removeAt(i)
+                }
+            }
+        }
+
+        val customGc = args.lastOrNull { it.startsWith("-XX:+Use") && it.endsWith("GC") }
+        if (customGc != null && customGc != "-XX:+UseG1GC") {
+            args.removeAll {
+                it == "-XX:+UseG1GC" ||
+                    it == "-XX:+ParallelRefProcEnabled" ||
+                    it.startsWith("-XX:G1") ||
+                    it.startsWith("-XX:MaxGCPauseMillis")
+            }
+        }
+
         args.add(0, "$runtimeHome/bin/java")
 
         LoggerBridge.appendTitle("JVM Args")

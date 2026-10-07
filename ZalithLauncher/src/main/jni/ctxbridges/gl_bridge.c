@@ -12,6 +12,7 @@
 #include <framegen/fps_limit.h>
 #include "gl_bridge.h"
 #include "egl_loader.h"
+#include "logger/logger.h"
 
 typedef int32_t (*ANativeWindow_getTransformHint_t)(ANativeWindow* window);
 static ANativeWindow_getTransformHint_t ANativeWindow_getTransformHint_fn = NULL;
