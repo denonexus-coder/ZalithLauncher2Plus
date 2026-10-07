@@ -210,7 +210,7 @@ class GameLauncher(
     RendererPluginManager.selectedRendererPlugin?.let { renderer ->
         val libs by renderer.getDlopenLibrary()
         libs.forEach { libPath ->
-            ZLBridge.dlopen(libPath)
+            runCatching { ZLBridge.dlopen(libPath) }.onFailure { Logger.error(TAG, "Failed to dlopen renderer plugin: ${it.message}") }
         }
     }
 

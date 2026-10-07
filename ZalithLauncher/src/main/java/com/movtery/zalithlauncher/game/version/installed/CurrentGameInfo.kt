@@ -73,7 +73,7 @@ fun refreshCurrentInfo(): CurrentGameInfo {
 }
 
 private fun loadFromJsonFile(infoFile: File): CurrentGameInfo {
-    return GSON.fromJson(infoFile.readText(), CurrentGameInfo::class.java).also { info ->
+    return runCatching { GSON.fromJson(infoFile.readText(), CurrentGameInfo::class.java) }.getOrNull()?.also { info ->
         checkNotNull(info) { "Deserialization returned null" }
     }
 }

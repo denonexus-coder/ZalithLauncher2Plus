@@ -266,7 +266,7 @@ class VersionConfig(
                 when {
                     configFile.exists() -> {
                         //读取此文件的内容，并解析为VersionConfig
-                        val config = GSON.fromJson(configFile.readText(), VersionConfig::class.java)
+                        val config = runCatching { GSON.fromJson(configFile.readText(), VersionConfig::class.java) }.getOrNull() ?: VersionConfig()
                         config.setVersionPath(versionPath)
                         config
                     }

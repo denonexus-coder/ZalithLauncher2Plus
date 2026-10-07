@@ -218,7 +218,7 @@ class LaunchArgs(
                 } else {
                     readAssetsFile("components/log4j-1.12.xml")
                 }
-                configFilePath.writeText(content)
+                runCatching { configFilePath.writeText(content) }.onFailure { Logger.warning(TAG, "Failed to write config file", it) }
             }.onFailure {
                 Logger.warning(TAG, "Failed to write fallback Log4j configuration autonomously!", it)
             }
