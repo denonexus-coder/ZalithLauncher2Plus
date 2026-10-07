@@ -145,3 +145,9 @@ JNIEXPORT void JNICALL Java_com_movtery_zalithlauncher_bridge_ZLBridge_fpsLimitS
 	}
 }
 
+// Forward declaration from io_redirect_hook.cpp
+extern void init_io_hooks(void);
+
+JNIEXPORT void JNICALL Java_com_movtery_zalithlauncher_bridge_ZLBridge_initIoHooks(JNIEnv *env, jclass clazz) {
+    init_io_hooks();
+}
