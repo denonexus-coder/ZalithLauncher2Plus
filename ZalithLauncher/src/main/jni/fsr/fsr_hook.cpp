@@ -126,6 +126,11 @@ static void* ensureRealEglGetProcAddress(const char* name) {
 /*
  * Hooked eglGetProcAddress - exportado porque bytehook chama por ponteiro direto
  */
+/* Forward declarations for internal wrappers */
+static void fsr_hook_glBindFramebuffer(GLenum target, GLuint framebuffer);
+static void fsr_hook_glViewport(GLint x, GLint y, GLsizei width, GLsizei height);
+static void fsr_hook_glGetIntegerv(GLenum pname, GLint* data);
+
 FSR_API void* hook_eglGetProcAddress(const char* name) {
     if (name == nullptr) return nullptr;
     if (strcmp(name, "glBindFramebuffer") == 0) return (void*)fsr_hook_glBindFramebuffer;
