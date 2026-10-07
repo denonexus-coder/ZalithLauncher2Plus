@@ -3,11 +3,11 @@
 #include <string.h>
 #include <stdio.h>
 
-static JavaVM* dalvikJavaVMPtr;
+static JavaVM* dalvikJavaVMPtr = NULL;
 
-static JavaVM* runtimeJavaVMPtr;
-static JNIEnv* runtimeJNIEnvPtr_GRAPHICS;
-static JNIEnv* runtimeJNIEnvPtr_INPUT;
+static JavaVM* runtimeJavaVMPtr = NULL;
+static JNIEnv* runtimeJNIEnvPtr_GRAPHICS = NULL;
+static JNIEnv* runtimeJNIEnvPtr_INPUT = NULL;
 jclass class_CTCScreen;
 jmethodID method_GetRGB;
 

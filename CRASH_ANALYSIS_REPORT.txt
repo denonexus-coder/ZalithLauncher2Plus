@@ -1,0 +1,224 @@
+Crash Analysis Report - Wed Oct  7 14:28:14 UTC 2026
+Repository: denonexus-coder/ZalithLauncher2Plus
+================================================
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/br_loader.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/egl_loader.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/gl_bridge.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/gl_bridge.c:
+  Problema: malloc/calloc sem verificação de NULL
+  Fix: Adicionar: if (ptr == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/osm_bridge.c:
+  Problema: malloc/calloc sem verificação de NULL
+  Fix: Adicionar: if (ptr == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/osmesa_loader.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/virgl_bridge.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/virgl_bridge.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/virgl_bridge.c:
+  Problema: malloc/calloc sem verificação de NULL
+  Fix: Adicionar: if (ptr == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/driver_helper/driver_helper.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/driver_helper/driver_helper.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/driver_helper/nsbypass.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/driver_helper/nsbypass.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/egl_bridge.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/environ/environ.c:
+  Problema: malloc/calloc sem verificação de NULL
+  Fix: Adicionar: if (ptr == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/exit_hook.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/exit_hook.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/fsr/fsr_hook.cpp:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/fsr/fsr_hook.cpp:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/input_bridge_v3.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/java_exec_hooks.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/jre_launcher.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/jre_launcher.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/lwjgl_dlopen_hook.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/namespace_shim.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/utils.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/utils.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/utils.c:
+  Problema: malloc/calloc sem verificação de NULL
+  Fix: Adicionar: if (ptr == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/vulkan_checker.c:
+  Problema: dlsym() chamado sem verificar NULL
+  Fix: Adicionar: if (sym == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/vulkan_checker.c:
+  Problema: dlopen() chamado sem verificar NULL
+  Fix: Adicionar: if (handle == NULL) { LOGE(...); return; }
+
+[CRITICAL] ZalithLauncher/src/main/jni/vulkan_checker.c:
+  Problema: malloc/calloc sem verificação de NULL
+  Fix: Adicionar: if (ptr == NULL) { LOGE(...); return; }
+
+[WARNING] ZalithLauncher/src/main/jni/awt_bridge.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/ctxbridges/gl_bridge.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/ctxbridges/osm_bridge.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/fsr/fsr_hook.cpp:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/input_bridge_v3.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/java_exec_hooks.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/jre_launcher.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/linkerhook/linkerhook.cpp:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/stdio_is.c:
+  Problema: Ponteiro estático não inicializado
+  Fix: Inicializar com: = NULL ou = nullptr
+
+[WARNING] ZalithLauncher/src/main/jni/fsr/fsr_hook.cpp:
+  Problema: glGetError() chamado sem verificar contexto GL
+  Fix: Verificar contexto antes: if (eglGetCurrentContext() == EGL_NO_CONTEXT) return;
+
+[CRITICAL] ZalithLauncher/src/main/jni/ctxbridges/virgl_bridge.c:
+  Problema: Variável global sem proteção de mutex em código multi-thread
+  Fix: Adicionar mutex ou usar std::atomic
+
+[CRITICAL] ZalithLauncher/src/main/jni/stdio_is.c:
+  Problema: Variável global sem proteção de mutex em código multi-thread
+  Fix: Adicionar mutex ou usar std::atomic
+
+[CRITICAL] ZalithLauncher/src/main/jni/thread_pinner.c:
+  Problema: Variável global sem proteção de mutex em código multi-thread
+  Fix: Adicionar mutex ou usar std::atomic
+
+[CRITICAL] ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/GameLauncher.kt:
+  Problema: Operação de I/O de ficheiro potencialmente na main thread
+  Fix: Envolver em: withContext(Dispatchers.IO) { } ou Thread { }.start()
+
+[CRITICAL] ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/JvmLauncher.kt:
+  Problema: Operação de I/O de ficheiro potencialmente na main thread
+  Fix: Envolver em: withContext(Dispatchers.IO) { } ou Thread { }.start()
+
+[CRITICAL] ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/LaunchArgs.kt:
+  Problema: Operação de I/O de ficheiro potencialmente na main thread
+  Fix: Envolver em: withContext(Dispatchers.IO) { } ou Thread { }.start()
+
+[CRITICAL] ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/Launcher.kt:
+  Problema: Operação de I/O de ficheiro potencialmente na main thread
+  Fix: Envolver em: withContext(Dispatchers.IO) { } ou Thread { }.start()
+
+[CRITICAL] ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/MCOptions.kt:
+  Problema: Operação de I/O de ficheiro potencialmente na main thread
+  Fix: Envolver em: withContext(Dispatchers.IO) { } ou Thread { }.start()
+
+[CRITICAL] ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/GameLauncher.kt:
+  Problema: Operação que pode lançar exceção sem tratamento
+  Fix: Envolver em: runCatching { }.onFailure { Logger.error(...) }
+
+[WARNING] ZalithLauncher/src/main/jni/ctxbridges/virgl_bridge.c:0
+  Problema: Bridge sem error logging
+  Fix: Adicionar LOGE() em pontos críticos
+
+[WARNING] ZalithLauncher/src/main/jni/ctxbridges/virgl_bridge.c:0
+  Problema: Bridge tem init mas não tem cleanup
+  Fix: Adicionar função de cleanup para evitar memory leaks
+
+[WARNING] ZalithLauncher/src/main/jni/thread_pinner.c:
+  Problema: sched_setaffinity sem verificação de erro
+  Fix: Adicionar: if (ret < 0) { LOGE(...); }
+
+[WARNING] ZalithLauncher/src/main/jni/bigcoreaffinity.c:0
+  Problema: Aplicar afinidade a TODAS as threads pode causar problemas
+  Fix: Aplicar apenas à render thread, deixar outras livres
+
+[CRITICAL] ZalithLauncher/src/main/jni/utils.c:
+  Problema: Possível memory leak: malloc sem free
+  Fix: Adicionar free() no cleanup ou usar RAII
+

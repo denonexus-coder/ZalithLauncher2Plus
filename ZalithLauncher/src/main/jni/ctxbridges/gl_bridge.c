@@ -84,6 +84,7 @@ static void gl4esi_get_display_dimensions(int* width, int* height) {
 
 gl_render_window_t* gl_init_context(gl_render_window_t *share) {
     gl_render_window_t* bundle = malloc(sizeof(gl_render_window_t));
+    if (bundle == NULL) { LOGE("Failed to allocate gl_render_window_t"); return NULL; }
     memset(bundle, 0, sizeof(gl_render_window_t));
     EGLint egl_attributes[] = { EGL_BLUE_SIZE, 8,
                     EGL_GREEN_SIZE, 8,

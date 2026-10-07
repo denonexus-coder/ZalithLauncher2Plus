@@ -13,6 +13,7 @@ __attribute__((constructor)) void env_init() {
     if(strptr_env == NULL) {
         __android_log_print(ANDROID_LOG_INFO, "Environ", "No environ found, creating...");
         pojav_environ = malloc(sizeof(struct pojav_environ_s));
+    if (pojav_environ == NULL) { LOGE("Failed to allocate pojav_environ"); return; }
         assert(pojav_environ);
         memset(pojav_environ, 0 , sizeof(struct pojav_environ_s));
         if(asprintf(&strptr_env, "%p", pojav_environ) == -1) abort();

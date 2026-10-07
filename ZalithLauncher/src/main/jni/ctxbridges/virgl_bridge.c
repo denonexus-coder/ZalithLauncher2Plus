@@ -49,6 +49,7 @@ bool loadSymbolsVirGL() {
     dlsym_EGL();
 
     char *fileName = calloc(1, 1024);
+    if (fileName == NULL) { LOGE("Failed to allocate fileName"); return; }
 
     sprintf(fileName, "%s/libvirgl_test_server.so", getenv("POJAV_NATIVEDIR"));
     void *handle = dlopen(fileName, RTLD_LAZY);

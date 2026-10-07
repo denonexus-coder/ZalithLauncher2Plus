@@ -15,12 +15,12 @@
 #define MAX_CPU 32
 
 static _Atomic bool g_enabled = false;
-static int g_errorCount = 0;
+static _Atomic int g_errorCount = 0;
 
 static void set_mask(pid_t tid, unsigned m) {
     cpu_set_t s; CPU_ZERO(&s);
     for (int i = 0; i < MAX_CPU; i++) if (m & (1u << i)) CPU_SET(i, &s);
-    if (sched_setaffinity(tid, sizeof(s), &s) != 0) g_errorCount++;
+    if (sched_setaffinity(tid, sizeof(s), &s) < 0) { g_errorCount++; LOGE("sched_setaffinity failed for tid %d", tid); }
 }
 
 static unsigned pick(const char *n) {

@@ -42,7 +42,12 @@ static void (*real_glBindVertexArray)(GLuint array) = nullptr;
 static void (*real_glDeleteVertexArrays)(GLsizei n, const GLuint* arrays) = nullptr;
 static void (*real_glBlitFramebuffer)(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter) = nullptr;
 
+static bool hasGLContext() {
+    return eglGetCurrentContext() != EGL_NO_CONTEXT;
+}
+
 static void checkError(const char* tag) {
+    if (!hasGLContext()) return;
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
         LOGE("%s: GL error 0x%x", tag, err);

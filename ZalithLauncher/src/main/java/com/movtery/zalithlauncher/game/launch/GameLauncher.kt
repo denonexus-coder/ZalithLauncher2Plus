@@ -105,7 +105,7 @@ class GameLauncher(
             Renderers.setCurrentRenderer(version.getRenderer())
         }
 
-        val manifest = GSON.fromJson(File(version.getVersionPath(), "${version.getVersionName()}.json").readText(), GameManifest::class.java)
+        val manifest = runCatching { GSON.fromJson(File(version.getVersionPath(), "${version.getVersionName()}.json").readText(), GameManifest::class.java) }.getOrElse { Logger.error(TAG, "Failed to parse game manifest", it); throw it }
         val clientJar = manifest.inheritsFrom?.let { inheritsFrom ->
             //FIXME: 依赖的是一个原版ID的版本，但这个版本可能是用户自行安装的，只是版本名称与ID一致，不保证客户端真的是对应版本
             VersionsManager.getVersion(inheritsFrom)?.getClientJar()
