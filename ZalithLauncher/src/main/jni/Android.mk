@@ -18,6 +18,7 @@ LOCAL_MODULE := pojavexec
 LOCAL_SHARED_LIBRARIES := driver_helper
 LOCAL_CFLAGS += -rdynamic
 LOCAL_SRC_FILES := \
+    native_io.cpp \
     native_bridge.cpp \
     bigcoreaffinity.c \
     egl_bridge.c \
@@ -51,6 +52,7 @@ LOCAL_LDLIBS := -ldl -llog
 LOCAL_MODULE := vulkan_check
 LOCAL_SHARED_LIBRARIES := driver_helper
 LOCAL_SRC_FILES := vulkan_checker.c
+    native_io.cpp \
     native_bridge.cpp \
 include $(BUILD_SHARED_LIBRARY)
 
@@ -64,6 +66,7 @@ LOCAL_MODULE := exithook
 LOCAL_LDLIBS := -ldl -llog
 LOCAL_SHARED_LIBRARIES := bytehook pojavexec
 LOCAL_SRC_FILES := exit_hook.c
+    native_io.cpp \
     native_bridge.cpp \
 include $(BUILD_SHARED_LIBRARY)
 
@@ -72,6 +75,7 @@ include $(CLEAR_VARS)
 LOCAL_LDLIBS := -ldl -llog -landroid
 LOCAL_MODULE := driver_helper
 LOCAL_SRC_FILES := \
+    native_io.cpp \
     native_bridge.cpp \
     driver_helper/driver_helper.c \
     driver_helper/nsbypass.c
@@ -87,6 +91,7 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_MODULE := linkerhook
 LOCAL_SRC_FILES := \
+    native_io.cpp \
     native_bridge.cpp \
     linkerhook/linkerhook.cpp \
     linkerhook/linkerns.c
@@ -97,6 +102,7 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_MODULE := pojavexec_awt
 LOCAL_SRC_FILES := \
+    native_io.cpp \
     native_bridge.cpp \
     awt_bridge.c
 include $(BUILD_SHARED_LIBRARY)
@@ -113,6 +119,7 @@ LOCAL_MODULE := awt_xawt
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)
 LOCAL_SHARED_LIBRARIES := awt_headless
 LOCAL_SRC_FILES := xawt_fake.c
+    native_io.cpp \
     native_bridge.cpp \
 include $(BUILD_SHARED_LIBRARY)
 
@@ -126,6 +133,7 @@ include $(CLEAR_VARS)
 LOCAL_LDLIBS := -ldl -llog
 LOCAL_MODULE := namespace_shim
 LOCAL_SRC_FILES := namespace_shim.c
+    native_io.cpp \
     native_bridge.cpp \
 include $(BUILD_SHARED_LIBRARY)
 
@@ -136,6 +144,7 @@ LOCAL_MODULE := zl_fsr
 LOCAL_CFLAGS += -rdynamic
 LOCAL_LDLIBS := -ldl -llog -lEGL -lGLESv2
 LOCAL_SRC_FILES := \
+    native_io.cpp \
     native_bridge.cpp \
     fsr/fsr_hook.cpp
 include $(BUILD_SHARED_LIBRARY)
