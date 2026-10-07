@@ -22,7 +22,9 @@ object OptimizedInputHandler {
      * Detecta gestos de arrasto e envia as coordenadas via NativeBridge.
      * Usa detectDragGestures para obter o histórico de movimentos.
      */
-    fun PointerInputScope.detectOptimizedDrag(
+    // detectDragGestures/detectTapGestures sao suspend: os wrappers tambem
+    // tem de ser, senao o compilador Kotlin recusa a chamada.
+    suspend fun PointerInputScope.detectOptimizedDrag(
         onDragStart: (Offset) -> Unit = {},
         onDragEnd: () -> Unit = {},
         onDragCancel: () -> Unit = {},
@@ -45,12 +47,14 @@ object OptimizedInputHandler {
                 // Consumir o evento para evitar propagação desnecessária
                 change.consume()
                 
-                // Enviar movimento para a ponte nativa
+                // Enviar movimento para a ponte nativa.
+                // queueInput() e um metodo Java: os argumentos tem de ser
+                // posicionais (named arguments nao sao permitidos em Java).
                 NativeBridge.queueInput(
-                    type = TYPE_MOUSE_MOVE,
-                    keyOrButton = 0,
-                    x = change.position.x,
-                    y = change.position.y
+                    TYPE_MOUSE_MOVE,
+                    0,
+                    change.position.x,
+                    change.position.y
                 )
                 
                 // Chamar callback original se necessário para lógica interna
@@ -62,7 +66,7 @@ object OptimizedInputHandler {
     /**
      * Detecta toques simples e envia como cliques de rato.
      */
-    fun PointerInputScope.detectOptimizedTap(
+    suspend fun PointerInputScope.detectOptimizedTap(
         onLongPress: (Offset) -> Unit = {},
         onTap: (Offset) -> Unit
     ) {

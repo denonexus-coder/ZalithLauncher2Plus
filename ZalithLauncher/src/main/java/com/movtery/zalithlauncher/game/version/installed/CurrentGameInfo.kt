@@ -63,7 +63,9 @@ fun refreshCurrentInfo(): CurrentGameInfo {
 
     return runCatching {
         when {
-            infoFile.exists() -> loadFromJsonFile(infoFile)
+            // loadFromJsonFile devolve null se o JSON nao deserializar: cai no
+            // config novo em vez de propagar null para uma funcao nao-anulavel.
+            infoFile.exists() -> loadFromJsonFile(infoFile) ?: createNewConfig()
             else -> createNewConfig()
         }
     }.getOrElse { e ->
@@ -72,10 +74,8 @@ fun refreshCurrentInfo(): CurrentGameInfo {
     }
 }
 
-private fun loadFromJsonFile(infoFile: File): CurrentGameInfo {
-    return runCatching { GSON.fromJson(infoFile.readText(), CurrentGameInfo::class.java) }.getOrNull()?.also { info ->
-        checkNotNull(info) { "Deserialization returned null" }
-    }
+private fun loadFromJsonFile(infoFile: File): CurrentGameInfo? {
+    return runCatching { GSON.fromJson(infoFile.readText(), CurrentGameInfo::class.java) }.getOrNull()
 }
 
 private fun createNewConfig() = CurrentGameInfo().applyPostActions()
