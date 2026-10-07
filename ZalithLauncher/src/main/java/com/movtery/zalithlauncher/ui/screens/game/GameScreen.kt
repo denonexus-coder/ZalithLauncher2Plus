@@ -18,6 +18,8 @@
 
 package com.movtery.zalithlauncher.ui.screens.game
 
+import com.movtery.zalithlauncher.game.support.input.OptimizedInputHandler
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
