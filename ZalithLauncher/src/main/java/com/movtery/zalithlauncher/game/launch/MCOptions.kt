@@ -42,7 +42,7 @@ object MCOptions {
 
     private fun scheduleReload() {
         reloadPending?.let { reloadHandler.removeCallbacks(it) }
-        reloadPending = Runnable { synchronized(lock) { loadInternal() } }.also {
+        reloadPending = Runnable { Thread { synchronized(lock) { loadInternal() } }.start() }.also {
             reloadHandler.postDelayed(it, 500L)
         }
     }

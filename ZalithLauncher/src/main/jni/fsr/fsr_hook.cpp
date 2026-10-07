@@ -6,18 +6,14 @@
 
 /*
  * FSR hook — versão corrigida:
- * 1) Todos os símbolos ficam ocultos (visibility hidden) exceto a API pública
- *    (fsr_init/fsr_apply/fsr_set_quality/fsr_destroy/fsr_query_active e
- *    hook_eglGetProcAddress). Isto impede que a lib intercete, por ordem de
- *    carregamento, os símbolos glGetIntegerv/glViewport/glBindFramebuffer que
- *    o Krypton Wrapper / LWJGL resolvem — causa original do SIGSEGV (pc=0x0)
- *    em libzl_fsr.so glGetIntegerv+0x1c quando o FSR não foi inicializado.
- * 2) Todos os wrappers fazem resolução preguiçosa (lazy) das funções reais
- *    e NUNCA chamam um ponteiro nulo. Sem contexto GL, simplesmente passam
- *    a chamada adiante (ou não fazem nada) — zero interrupção na inicialização.
+ * 1) Só a API pública é exportada (FSR_API). Os wrappers GL ficam
+ *    escondidos (FSR_LOCAL) — deixam de intercetar os símbolos que o
+ *    Krypton Wrapper / LWJGL resolvem. Causa original do SIGSEGV
+ *    (pc=0x0) em libzl_fsr.so glGetIntegerv+0x1c.
+ * 2) Todos os wrappers resolvem as funções reais de forma lazy e
+ *    NUNCA chamam um ponteiro nulo. Zero interrupção na inicialização.
  */
 
-/* Apenas a API pública é exportada da lib */
 #define FSR_API extern "C" __attribute__((visibility("default")))
 #define FSR_LOCAL __attribute__((visibility("hidden")))
 
@@ -123,9 +119,8 @@ FSR_LOCAL static bool ensureRealGLFunctions() {
 
 FSR_LOCAL static void* ensureRealEglGetProcAddress(const char* name) {
     if (!real_eglGetProcAddress) {
-        // Real EGL function: resolve lazily, WITHOUT calling any possibly
-        // hooked eglGetProcAddress (avoid recursion). RTLD_NEXT reaches the
-        // real implementation in the EGL library loaded by the process.
+        // Resolve the real EGL function lazily, WITHOUT calling any possibly
+        // hooked eglGetProcAddress (avoid recursion).
         real_eglGetProcAddress = (void* (*)(const char*))dlsym(RTLD_NEXT, "eglGetProcAddress");
         if (!real_eglGetProcAddress) {
             void* egl = dlopen("libEGL.so", RTLD_LAZY | RTLD_NOLOAD);
@@ -133,20 +128,18 @@ FSR_LOCAL static void* ensureRealEglGetProcAddress(const char* name) {
             if (egl) real_eglGetProcAddress = (void* (*)(const char*))dlsym(egl, "eglGetProcAddress");
         }
         if (!real_eglGetProcAddress) {
-            LOGE("FSR: cannot resolve real eglGetProcAddress (missing %s)", name);
+            LOGE("FSR: cannot resolve real eglGetProcAddress (missing %s)", name ? name : "?");
         }
     }
     return real_eglGetProcAddress ? real_eglGetProcAddress(name) : nullptr;
 }
 
 /*
- * Hooked eglGetProcAddress — returns our wrapper for intercepted functions,
- * passes through everything else to the real eglGetProcAddress.
- * Bytehook calls this by direct pointer, so it MUST stay exported (FSR_API).
- * Fully guarded: never dereferences a null pointer.
+ * Hooked eglGetProcAddress — bytehook calls this by direct pointer,
+ * so it MUST stay exported (FSR_API). Fully guarded: never dereferences NULL.
  */
 FSR_API void* hook_eglGetProcAddress(const char* name) {
-    if (name == nullptr) return ensureRealEglGetProcAddress(name);
+    if (name == nullptr) return nullptr;
     if (strcmp(name, "glBindFramebuffer") == 0) return (void*)glBindFramebuffer;
     if (strcmp(name, "glViewport") == 0) return (void*)glViewport;
     if (strcmp(name, "glGetIntegerv") == 0) return (void*)glGetIntegerv;
@@ -154,14 +147,12 @@ FSR_API void* hook_eglGetProcAddress(const char* name) {
 }
 
 /*
- * Exported wrapper — when the game binds framebuffer 0 (the default / EGL surface),
- * redirect to our lower-resolution render FBO so the game renders at reduced resolution.
- * HIDDEN: only reachable via bytehook / eglGetProcAddress hook, never by symbol
- * interposition. If the real functions are not resolvable yet, falls through safely.
+ * HIDDEN wrapper — only reachable via bytehook / eglGetProcAddress hook,
+ * never by symbol interposition. Guarded: never calls a NULL pointer.
  */
 FSR_LOCAL void glBindFramebuffer(GLenum target, GLuint framebuffer) {
     if (!real_glBindFramebuffer) {
-        if (!ensureRealGLFunctions()) return; /* no GL yet — nothing we can do */
+        if (!ensureRealGLFunctions()) return; /* no GL yet — nothing to do */
     }
     if (g_active && g_renderFBO != 0 && framebuffer == 0) {
         real_glBindFramebuffer(target, g_renderFBO);
@@ -170,10 +161,6 @@ FSR_LOCAL void glBindFramebuffer(GLenum target, GLuint framebuffer) {
     real_glBindFramebuffer(target, framebuffer);
 }
 
-/*
- * Exported wrapper — clamp viewport to the render resolution when FSR is active.
- * HIDDEN + fully guarded.
- */
 FSR_LOCAL void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
     if (!real_glViewport) {
         if (!ensureRealGLFunctions()) return;
@@ -192,14 +179,13 @@ FSR_LOCAL void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
 }
 
 /*
- * Exported wrapper — spoof GL_FRAMEBUFFER_BINDING queries so the game always sees 0
- * when our redirect FBO is active. This prevents state save/restore breakage.
- * HIDDEN + fully guarded. THIS is the function that used to SIGSEGV with pc=0x0.
+ * HIDDEN wrapper — THIS is the function that used to SIGSEGV with pc=0x0.
+ * Guarded: never calls a NULL pointer, never writes to a NULL buffer.
  */
 FSR_LOCAL void glGetIntegerv(GLenum pname, GLint* data) {
     if (!real_glGetIntegerv) {
         if (!ensureRealGLFunctions()) {
-            return; /* never crash: without a real function there is nothing to spoof */
+            return; /* no real GL yet: nothing to spoof, never crash */
         }
     }
     if (data == nullptr) return;
@@ -447,7 +433,7 @@ FSR_LOCAL static bool fsrRebuildFramebuffers() {
 }
 
 FSR_API void fsr_apply() {
-    /* Never requested (no -Dzlith.fsr.quality): do nothing at all.
+    /* Not requested (no -Dzlith.fsr.quality): do nothing at all.
      * This is what makes startup safe even when the lib is dlopen'ed. */
     if (!g_requested) return;
     if (g_active) {
@@ -551,12 +537,12 @@ do_fsr:
     }
 }
 
-FSR_API int fsr_query_active(void) {
-    return g_active ? 1 : 0;
-}
-
 FSR_API void fsr_set_quality(int qualityPreset) {
     g_qualityPreset = qualityPreset;
+}
+
+FSR_API int fsr_query_active(void) {
+    return g_active ? 1 : 0;
 }
 
 FSR_API void fsr_destroy() {

@@ -325,7 +325,7 @@ static void zl_publish(struct zl_stats* s) {
     s->fps_avg = 1000000.0f / ((float)total_delta / (float)valid_frames);
     s->frametime_ms = (float)total_delta / ((float)valid_frames * 1000.0f);
     s->low1 = p99_delta > 0 ? (int32_t)(1000000U / p99_delta) : 0;
-    printf("ZLStats: publish fps=%d low1=%d\n", s->fps, s->low1);
+    s->sample_count = 0; s->ring_idx = 0;
     if (g_statsShared != NULL) {
         __atomic_store_n(g_statsShared + 0, s->fps, __ATOMIC_RELAXED);
         __atomic_store_n(g_statsShared + 1, s->fps_min, __ATOMIC_RELAXED);

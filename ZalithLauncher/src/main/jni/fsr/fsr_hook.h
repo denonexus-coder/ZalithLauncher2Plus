@@ -35,12 +35,12 @@ FSR_API void fsr_init(int qualityPreset);
 FSR_API void fsr_apply();
 FSR_API void fsr_set_quality(int qualityPreset);
 FSR_API void fsr_destroy();
-/* Consulta rápida: o FSR está ativo? (não substitui, apenas informa) */
+/* Consulta rápida: o FSR está ativo? */
 FSR_API int fsr_query_active(void);
 
-/* Hook de eglGetProcAddress instalado via bytehook (chamado por ponteiro
- * direto, por isso TEM de estar exportado). Os wrappers GL que devolve
- * ficam escondidos dentro da lib. */
+/* Hook de eglGetProcAddress instalado via bytehook (chamado por
+ * ponteiro direto, por isso TEM de estar exportado). Os wrappers GL
+ * que devolve ficam escondidos dentro da lib. */
 FSR_API void* hook_eglGetProcAddress(const char* procname);
 
 #ifdef __cplusplus
