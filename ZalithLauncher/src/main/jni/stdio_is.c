@@ -82,26 +82,40 @@ Java_com_movtery_zalithlauncher_bridge_LoggerBridge_start(JNIEnv *env, __attribu
 
     jclass ioeClass = (*env)->FindClass(env, "java/io/IOException");
 
+    /* Abrir latestlog.txt ANTES de mexer no stdout/stderr.
+     * 1) O_WRONLY|O_TRUNC sem O_CREAT falhava sempre que o ficheiro nao
+     *    existisse - foi ai que nascia o "latestlog_fd = 0".
+     * 2) Se abrirmos DEPOIS do dup2 e falharmos, o logger_thread nunca e
+     *    criado, ninguem le do pfd[0] e o processo bloqueia em write() no
+     *    momento em que o buffer do pipe (64KB) encher -> launcher congelado.
+     * 3) latestlog_fd = 0 mandava todos os logs seguintes para o stdin. */
+    const char* logFilePath = (*env)->GetStringUTFChars(env, logPath, NULL);
+    int newLogFd = open(logFilePath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    // Guardar o errno aqui: ReleaseStringUTFChars entra no JNI e pode limpa-lo.
+    int openErrno = errno;
+    (*env)->ReleaseStringUTFChars(env, logPath, logFilePath);
+
+    if (newLogFd == -1)
+    {
+        (*env)->ThrowNew(env, ioeClass, strerror(openErrno));
+        return;
+    }
+    latestlog_fd = newLogFd;
 
     setvbuf(stdout, 0, _IOLBF, 0); // make stdout line-buffered
     setvbuf(stderr, 0, _IONBF, 0); // make stderr unbuffered
 
     /* create the pipe and redirect stdout and stderr */
-    pipe(pfd);
-    dup2(pfd[1], 1);
-    dup2(pfd[1], 2);
-
-    /* open latestlog.txt for writing */
-    const char* logFilePath = (*env)->GetStringUTFChars(env, logPath, NULL);
-    latestlog_fd = open(logFilePath, O_WRONLY | O_TRUNC);
-
-    if (latestlog_fd == -1)
+    if (pipe(pfd) != 0)
     {
-        latestlog_fd = 0;
-        (*env)->ThrowNew(env, ioeClass, strerror(errno));
+        int pipeErrno = errno;
+        close(latestlog_fd);
+        latestlog_fd = -1;
+        (*env)->ThrowNew(env, ioeClass, strerror(pipeErrno));
         return;
     }
-    (*env)->ReleaseStringUTFChars(env, logPath, logFilePath);
+    dup2(pfd[1], 1);
+    dup2(pfd[1], 2);
 
     /* spawn the logging thread */
     int result = pthread_create(&logger, 0, logger_thread, 0);

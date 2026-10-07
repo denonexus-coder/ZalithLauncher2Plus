@@ -84,6 +84,13 @@ abstract class Launcher(
 
         ZLBridge.setLdLibraryPath(getRuntimeLibraryPath())
 
+        // FASE 2: instalar os hooks de I/O (bytehook) uma vez, ja com as libs
+        // carregadas. Passa um posix_fadvise(SEQUENTIAL) em .mca/level.dat para
+        // melhorar a leitura em serie do carregamento de chunks. Nunca derruba o
+        // arranque: o hook desiste-se a si proprio se o open() nao resolver.
+        runCatching { ZLBridge.initIoHooks() }
+            .onFailure { Logger.warning(TAG, "Failed to install I/O hooks", it) }
+
         LoggerBridge.appendTitle("Env Map")
         setEnv(screenSize)
 

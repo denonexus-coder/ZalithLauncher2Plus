@@ -13,10 +13,10 @@ import com.movtery.zalithlauncher.bridge.NativeBridge
  */
 object OptimizedInputHandler {
 
-    // Constantes para tipos de input (devem corresponder ao struct em C++)
-    private const val TYPE_KEYBOARD = 0
-    private const val TYPE_MOUSE_CLICK = 1
-    private const val TYPE_MOUSE_MOVE = 2
+    // Constantes de evento: tem de corresponder a EVENT_TYPE_* de
+    // input_bridge_v3.c (e nao a um enum ad-hoc, senao o nativo descarta tudo).
+    private const val EVENT_TYPE_CURSOR_POS = 1003
+    private const val EVENT_TYPE_MOUSE_BUTTON = 1006
 
     /**
      * Detecta gestos de arrasto e envia as coordenadas via NativeBridge.
@@ -51,8 +51,9 @@ object OptimizedInputHandler {
                 // queueInput() e um metodo Java: os argumentos tem de ser
                 // posicionais (named arguments nao sao permitidos em Java).
                 NativeBridge.queueInput(
-                    TYPE_MOUSE_MOVE,
+                    EVENT_TYPE_CURSOR_POS,
                     0,
+                    NativeBridge.ACTION_RELEASE,
                     change.position.x,
                     change.position.y
                 )
@@ -73,8 +74,22 @@ object OptimizedInputHandler {
         detectTapGestures(
             onLongPress = onLongPress,
             onTap = { offset ->
-                // Enviar clique esquerdo (button 1)
-                NativeBridge.queueInput(TYPE_MOUSE_CLICK, 1, offset.x, offset.y)
+                // Um tap tem de virar clique completo: premir e soltar. Só o
+                // premir deixava o botao preso no jogo ate ao proximo clique.
+                NativeBridge.queueInput(
+                    EVENT_TYPE_MOUSE_BUTTON,
+                    NativeBridge.BUTTON_LEFT,
+                    NativeBridge.ACTION_PRESS,
+                    offset.x,
+                    offset.y
+                )
+                NativeBridge.queueInput(
+                    EVENT_TYPE_MOUSE_BUTTON,
+                    NativeBridge.BUTTON_LEFT,
+                    NativeBridge.ACTION_RELEASE,
+                    offset.x,
+                    offset.y
+                )
                 NativeBridge.flushEvents()
                 onTap(offset)
             }

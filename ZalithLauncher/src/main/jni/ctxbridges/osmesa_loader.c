@@ -45,6 +45,16 @@ void dlsym_OSMesa() {
     char* mesa_name = getenv("LIB_MESA_NAME");
     char* pojav_native_dir = getenv("POJAV_NATIVEDIR");
 
+    // asprintf("%s/%s", dir, NULL) nao e definido: depende da libc e produz
+    // ".../(null)" ou um segfault. Falhar aqui com uma mensagem clara vale
+    // mais do que morrer sem se saber porque.
+    if (mesa_name == NULL || pojav_native_dir == NULL) {
+        fprintf(stderr, "Error: LIB_MESA_NAME (\"%s\") or POJAV_NATIVEDIR (\"%s\") is not set.\n",
+                mesa_name ? mesa_name : "(null)",
+                pojav_native_dir ? pojav_native_dir : "(null)");
+        abort();
+    }
+
     char* main_path = construct_main_path(mesa_name, pojav_native_dir);
     if (!main_path) {
         fprintf(stderr, "Error: Failed to construct main path.\n");

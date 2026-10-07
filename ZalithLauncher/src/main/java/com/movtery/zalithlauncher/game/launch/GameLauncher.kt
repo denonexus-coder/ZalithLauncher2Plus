@@ -41,6 +41,7 @@ import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.path.GamePathManager
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
+import com.movtery.zalithlauncher.game.renderer.RendererInterface
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
@@ -316,7 +317,8 @@ class GameLauncher(
     ) {
         var mcInfo = version.getVersionName()
         version.getVersionInfo()?.let { info -> mcInfo = info.getInfoString() }
-        val renderer = Renderers.getCurrentRenderer()
+        // Mostra o renderer que vai ser usado realmente, nao o pedido.
+        val renderer = resolveRenderer()
 
         appendTitle("Launch Minecraft")
         append("▷ Launcher version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
@@ -414,7 +416,11 @@ private fun checkAndUsedJSPH(envMap: MutableMap<String, String>, runtime: Runtim
 }
 
 private fun setRendererEnv(envMap: MutableMap<String, String>) {
-    val renderer = Renderers.getCurrentRenderer()
+    // resolveRenderer() devolve o pedido pelo utilizador se a lib existir,
+    // ou um substituto completo se nao existir. Tem de ser aqui, antes de
+    // qualquer variavel: POJAVEXEC_EGL, MESA_LOADER_DRIVER_OVERRIDE e
+    // LIB_MESA_NAME sao todos derivados do renderer.
+    val renderer = resolveRenderer()
     val rendererId = renderer.getRendererId()
 
     if (rendererId.startsWith("opengles2")) {
@@ -464,13 +470,50 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 }
 
 /**
+ * O renderer escolhido pelo utilizador pode depender de uma lib que nao vem
+ * empacotada (MobileGlues -> libMobileGlues.so; Kopper Zink -> libglxshim.so
+ * e libEGL_mesa.so). Se ela nao existir, trocamos por um renderer completo
+ * ANTES de escrever qualquer variavel de ambiente, senao POJAVEXEC_EGL,
+ * MESA_LOADER_DRIVER_OVERRIDE e LIB_MESA_NAME ficavam a apontar para
+ * ficheiros inexistentes e o processo morria no arranque do renderer.
+ */
+private fun resolveRenderer(): RendererInterface {
+    val current = Renderers.getCurrentRenderer()
+    if (nativeLibraryExists(current.getRendererLibrary())) return current
+
+    val fallback = Renderers.getRenderers().firstOrNull {
+        it.getUniqueIdentifier() != current.getUniqueIdentifier() &&
+            nativeLibraryExists(it.getRendererLibrary())
+    }
+    Logger.warning(
+        TAG,
+        "Renderer ${current.getRendererName()} needs ${current.getRendererLibrary()} which is not installed; " +
+            "using ${fallback?.getRendererName() ?: "none"} instead"
+    )
+    return fallback ?: current
+}
+
+/**
  * Open the render library in accordance to the settings.
  * It will fallback if it fails to load the library.
  * @return The name of the loaded library
  */
 private fun loadGraphicsLibrary(): String? {
-    return if (!Renderers.isCurrentRendererValid()) null
-    else Renderers.getCurrentRenderer().getRendererLibrary()
+    if (!Renderers.isCurrentRendererValid()) return null
+    val libName = resolveRenderer().getRendererLibrary()
+    return libName.takeIf { nativeLibraryExists(it) }
+}
+
+/**
+ * A lib existe mesmo no dispositivo? As libs da APK sao extraidas para
+ * [PathManager.DIR_NATIVE_LIB]; caminhos com '/' sao plugins do utilizador.
+ * Se o diretorio ainda nao existir nao bloqueamos - o nativo darra um erro claro.
+ */
+private fun nativeLibraryExists(libPath: String): Boolean {
+    if (libPath.isEmpty()) return false
+    if (libPath.contains('/')) return File(libPath).exists()
+    val nativeDir = File(PathManager.DIR_NATIVE_LIB).takeIf { it.isDirectory } ?: return true
+    return File(nativeDir, libPath).exists()
 }
 
 /**

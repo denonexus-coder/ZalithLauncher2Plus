@@ -96,6 +96,13 @@ JNIEXPORT void JNICALL Java_com_movtery_zalithlauncher_bridge_ZLBridge_setLdLibr
 	}
 	
 	android_update_LD_LIBRARY_PATH = (android_update_LD_LIBRARY_PATH_t) updateLdLibPath;
+	// Os dois dlsym acima podem falhar (sao logos ocutos em alguns API levels).
+	// Sem esta guarda, a linha seguinte chamava um ponteiro NULL e o processo
+	// morria com SIGSEGV no proprio arranque do jogo.
+	if (android_update_LD_LIBRARY_PATH == NULL) {
+		LOG_TO_E("setLdLibraryPath: android_update_LD_LIBRARY_PATH unavailable, skipping");
+		return;
+	}
 	const char* ldLibPathUtf = (*env)->GetStringUTFChars(env, ldLibraryPath, 0);
 	android_update_LD_LIBRARY_PATH(ldLibPathUtf);
 	(*env)->ReleaseStringUTFChars(env, ldLibraryPath, ldLibPathUtf);

@@ -133,8 +133,14 @@ gl_render_window_t* gl_init_context(gl_render_window_t *share) {
         if (!bindResult) printf("EGLBridge: bind failed: %p\n", eglGetError_p());
     }
 
-    int libgl_es = strtol(getenv("LIBGL_ES"), NULL, 0);
-    if (libgl_es < 0 || libgl_es > INT16_MAX) libgl_es = 2;
+    // getenv devolve NULL se a variavel nao existir e strtol(NULL) segfaulta.
+    // Sem a variavel usamos o padrao GLES 2, o minimo suportado.
+    const char* libglEsEnv = getenv("LIBGL_ES");
+    int libgl_es = 2;
+    if (libglEsEnv != NULL) {
+        libgl_es = (int) strtol(libglEsEnv, NULL, 0);
+        if (libgl_es < 0 || libgl_es > INT16_MAX) libgl_es = 2;
+    }
     const EGLint egl_context_attributes[] = { EGL_CONTEXT_CLIENT_VERSION, libgl_es, EGL_NONE };
     bundle->context = eglCreateContext_p(g_EglDisplay, bundle->config, share == NULL ? EGL_NO_CONTEXT : share->context, egl_context_attributes);
 
@@ -237,6 +243,10 @@ void gl_make_current(gl_render_window_t* bundle) {
 }
 
 void gl_swap_buffers() {
+    // Obrigatorio: gl_swap_buffers e chamado pela pump de eventos mesmo
+    // antes de haver contexto. Sem esta guarda -> NULL deref no primeiro frame.
+    if (currentBundle == NULL) return;
+
     if (currentBundle->state == STATE_RENDERER_NEW_WINDOW)
     {
         eglMakeCurrent_p(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);

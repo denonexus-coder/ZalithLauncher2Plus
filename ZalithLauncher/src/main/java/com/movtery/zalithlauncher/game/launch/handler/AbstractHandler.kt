@@ -26,13 +26,17 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import com.movtery.zalithlauncher.game.launch.Launcher
 import com.movtery.zalithlauncher.ui.control.input.TextInputMode
+import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import com.movtery.zalithlauncher.viewmodel.EventViewModel
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+
+private const val TAG = "AbstractHandler"
 
 abstract class AbstractHandler(
     val type: HandlerType,
@@ -50,7 +54,15 @@ abstract class AbstractHandler(
         screenSize: IntSize,
         scope: CoroutineScope
     ) {
-        scope.launch(Dispatchers.Default) {
+        scope.launch(
+            Dispatchers.Default + CoroutineExceptionHandler { _, e ->
+                // Sem este handler a excecao morria dentro da coroutine de forma
+                // silenciosa: onExit() nunca corria, onExitComplete() ficava preso
+                // e o launcher nunca terminava o processo de jogo com codigo.
+                Logger.error(TAG, "Game launch failed", e)
+                onExit(-1)
+            }
+        ) {
             val code = launcher.launch(screenSize)
             onExit(code)
         }
