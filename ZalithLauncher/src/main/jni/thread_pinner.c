@@ -1,3 +1,6 @@
+// Forward declaration from bigcoreaffinity.c
+extern void bigcore_apply_to_render_thread(void);
+extern void bigcore_init(void);
 #define _GNU_SOURCE
 #include <sched.h>
 #include <dirent.h>
