@@ -224,6 +224,9 @@ class LaunchArgs(
             }
         }
         argsList.add("-Dlog4j.configurationFile=${configFilePath.absolutePath}")
+        // Otimizações para MT6765: Limitar threads da JVM aos Big Cores
+        argsList.add("-XX:ActiveProcessorCount=4")
+        argsList.add("-XX:+UseShenandoahGC")
         argsList.add("-Dminecraft.client.jar=${clientJar.absolutePath}")
         argsList.add("-Dminecraft.launcher.brand=${BuildKeys.LAUNCHER_NAME}")
         argsList.add("-Dminecraft.launcher.version=${BuildConfig.VERSION_NAME}")

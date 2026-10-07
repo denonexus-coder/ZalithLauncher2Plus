@@ -282,6 +282,8 @@ class GameLauncher(
 
         tryStartTouchProxy()
 
+        // Minimizar launcher para libertar RAM e CPU para a JVM do Minecraft
+        activity.moveTaskToBack(true)
         return launchJvm(
             context = activity,
             jvmArgs = launchArgs,

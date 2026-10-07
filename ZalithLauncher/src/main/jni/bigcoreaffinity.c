@@ -10,27 +10,43 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-// Máscara confirmada para MT6765: Cores 0-3 (Big @ 2.3GHz)
-static const cpu_set_t BIG_CORE_MASK = { .__bits = { 0x0F } }; 
+static cpu_set_t g_big_core_set;
 static int g_initialized = 0;
 
 void bigcore_init(void) {
-    // Verificação de segurança: ler a freq máxima para confirmar
-    FILE *f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "r");
-    if (f) {
-        int max_freq = 0;
-        fscanf(f, "%d", &max_freq);
-        fclose(f);
-        
-        if (max_freq >= 2300000) {
-            LOGI("Device confirmed as MT6765/High-perf. Using mask 0x0F (Cores 0-3).");
-            g_initialized = 1;
-            return;
+    CPU_ZERO(&g_big_core_set);
+    
+    long num_cores = sysconf(_SC_NPROCESSORS_CONF);
+    long max_freqs[16] = {0};
+    long absolute_max = 0;
+
+    // 1. Ler frequências máximas de todos os núcleos
+    for (int i = 0; i < num_cores && i < 16; i++) {
+        char path[128];
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        FILE *f = fopen(path, "r");
+        if (f) {
+            fscanf(f, "%ld", &max_freqs[i]);
+            fclose(f);
+            if (max_freqs[i] > absolute_max) absolute_max = max_freqs[i];
         }
     }
+
+    // 2. Selecionar núcleos que operam a >= 90% da frequência máxima
+    long threshold = (absolute_max * 90) / 100;
+    for (int i = 0; i < num_cores && i < 16; i++) {
+        if (max_freqs[i] >= threshold) {
+            CPU_SET(i, &g_big_core_set);
+            LOGI("Core %d identified as BIG (%ld kHz)", i, max_freqs[i]);
+        }
+    }
+
+    // Fallback se nada for encontrado ou se a leitura falhar
+    if (CPU_COUNT(&g_big_core_set) == 0) {
+        for (int i = num_cores / 2; i < num_cores; i++) CPU_SET(i, &g_big_core_set);
+        LOGW("Fallback: Using upper half cores.");
+    }
     
-    // Fallback genérico se a leitura falhar
-    LOGW("Using generic high-core detection.");
     g_initialized = 1;
 }
 
@@ -38,9 +54,9 @@ void bigcore_apply_to_render_thread(void) {
     if (!g_initialized) bigcore_init();
     
     pid_t tid = gettid();
-    if (sched_setaffinity(tid, sizeof(BIG_CORE_MASK), &BIG_CORE_MASK) < 0) {
+    if (sched_setaffinity(tid, sizeof(g_big_core_set), &g_big_core_set) < 0) {
         LOGE("Failed to pin render thread (tid %d): %s", tid, strerror(errno));
     } else {
-        LOGI("Render thread successfully pinned to BIG cores (0-3)");
+        LOGI("Render thread pinned to %d BIG cores", CPU_COUNT(&g_big_core_set));
     }
 }
